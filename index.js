@@ -108,7 +108,6 @@ function displayResponse(text, response) {
     // display button to copy tx.hash or signature
     const responseButton = document.getElementById("response-button");
     responseButton.className = "active";
-    copyToClipboard(response);
     responseButton.onclick = () => copyToClipboard(response);
   }
 }
