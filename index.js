@@ -23,6 +23,8 @@ function returnToApp() {
 
 
 async function loadApp() {
+    window.location.href = "madbackpackdeeplink:// ";
+
     provider = new ethers.providers.Web3Provider(window.ethereum, "any");
     signer = provider.getSigner();
     if (!signer) window.location.reload();
