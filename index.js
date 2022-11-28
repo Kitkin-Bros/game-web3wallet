@@ -9,12 +9,12 @@ document.addEventListener("DOMContentLoaded", loadApp());
 
 
 function returnToApp() {
-    console.log("redirect")
-    var user_agent_header = navigator.userAgent;
-
-    setTimeout(function () {
-        window.location = "madbackpackdeeplink:// ";
-    }, 25);
+    // console.log("redirect")
+    //var user_agent_header = navigator.userAgent;
+    // window.location.href = "http://yandex.ru";
+    // setTimeout(function () {
+    //     window.location.href = "madbackpackdeeplink:// ";
+    // }, 25);
 
     // if (user_agent_header.indexOf('iPhone') != -1 || user_agent_header.indexOf('iPod') != -1 || user_agent_header.indexOf('iPad') != -1) {
     //
@@ -23,6 +23,8 @@ function returnToApp() {
 
 
 async function loadApp() {
+    window.location.href = "http://yandex.ru";
+
     provider = new ethers.providers.Web3Provider(window.ethereum, "any");
     signer = provider.getSigner();
     if (!signer) window.location.reload();
@@ -99,7 +101,6 @@ async function signMessage(message) {
         displayResponse("Signature Denied");
         copyToClipboard("error");
     }
-     returnToApp()
 }
 
 async function copyToClipboard(response) {
