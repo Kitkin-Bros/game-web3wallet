@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", loadApp());
 
 
 function returnToApp() {
+    console.log("redirect")
     var user_agent_header = navigator.userAgent;
 
     if (user_agent_header.indexOf('iPhone') != -1 || user_agent_header.indexOf('iPod') != -1 || user_agent_header.indexOf('iPad') != -1) {
@@ -78,16 +79,10 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data) {
         displayResponse("Transaction sent.<br><br>Copy to clipboard then continue to App", tx.hash);
 
         copyToClipboard(tx.hash);
-
-        // вызывать урл для переноса в приложение
-        returnToApp()
-
     } catch (error) {
         copyToClipboard("error");
         displayResponse("Transaction Denied");
         copyToClipboard("error");
-
-        returnToApp()
     }
 }
 
@@ -101,9 +96,8 @@ async function signMessage(message) {
         copyToClipboard("error");
         displayResponse("Signature Denied");
         copyToClipboard("error");
-
-        returnToApp()
     }
+     returnToApp()
 }
 
 async function copyToClipboard(response) {
