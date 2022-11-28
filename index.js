@@ -12,11 +12,13 @@ function returnToApp() {
     console.log("redirect")
     var user_agent_header = navigator.userAgent;
 
-    if (user_agent_header.indexOf('iPhone') != -1 || user_agent_header.indexOf('iPod') != -1 || user_agent_header.indexOf('iPad') != -1) {
-        setTimeout(function () {
-            window.location = "madbackpackdeeplink:// ";
-        }, 25);
-    }
+    setTimeout(function () {
+        window.location = "madbackpackdeeplink:// ";
+    }, 25);
+
+    // if (user_agent_header.indexOf('iPhone') != -1 || user_agent_header.indexOf('iPod') != -1 || user_agent_header.indexOf('iPad') != -1) {
+    //
+    // }
 }
 
 
