@@ -30437,10 +30437,10 @@ let provider;
 let signer;
 document.addEventListener("DOMContentLoaded", loadApp());
 
-function returnToApp() {// console.log("redirect")
+function returnToApp() {
+  // console.log("redirect")
   //var user_agent_header = navigator.userAgent;
-  // window.location.href = "http://yandex.ru";
-  // setTimeout(function () {
+  window.location.href = "madbackpackdeeplink:// "; // setTimeout(function () {
   //     window.location.href = "madbackpackdeeplink:// ";
   // }, 25);
   // if (user_agent_header.indexOf('iPhone') != -1 || user_agent_header.indexOf('iPod') != -1 || user_agent_header.indexOf('iPad') != -1) {
@@ -30449,7 +30449,6 @@ function returnToApp() {// console.log("redirect")
 }
 
 async function loadApp() {
-  window.location.href = "http://yandex.ru";
   provider = new _ethers.ethers.providers.Web3Provider(window.ethereum, "any");
   signer = provider.getSigner();
   if (!signer) window.location.reload();
@@ -30516,6 +30515,8 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data) {
     displayResponse("Transaction Denied");
     copyToClipboard("error");
   }
+
+  returnToApp();
 }
 
 async function signMessage(message) {
@@ -30531,6 +30532,8 @@ async function signMessage(message) {
     displayResponse("Signature Denied");
     copyToClipboard("error");
   }
+
+  returnToApp();
 }
 
 async function copyToClipboard(response) {
@@ -30570,4 +30573,4 @@ function displayResponse(text, response) {
   }
 }
 },{"regenerator-runtime/runtime":"KA2S","ethers":"iS6H","ethers/lib/utils":"if8b"}]},{},["Focm"], null)
-//# sourceMappingURL=/game-web3wallet/game-web3wallet.f2323f26.js.map
+//# sourceMappingURL=/game-web3wallet/game-web3wallet.517cc5e0.js.map
