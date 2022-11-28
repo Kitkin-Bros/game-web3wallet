@@ -30438,6 +30438,7 @@ let signer;
 document.addEventListener("DOMContentLoaded", loadApp());
 
 function returnToApp() {
+  console.log("redirect");
   var user_agent_header = navigator.userAgent;
 
   if (user_agent_header.indexOf('iPhone') != -1 || user_agent_header.indexOf('iPod') != -1 || user_agent_header.indexOf('iPad') != -1) {
@@ -30508,14 +30509,11 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data) {
       tx
     });
     displayResponse("Transaction sent.<br><br>Copy to clipboard then continue to App", tx.hash);
-    copyToClipboard(tx.hash); // вызывать урл для переноса в приложение
-
-    returnToApp();
+    copyToClipboard(tx.hash);
   } catch (error) {
     copyToClipboard("error");
     displayResponse("Transaction Denied");
     copyToClipboard("error");
-    returnToApp();
   }
 }
 
@@ -30531,8 +30529,9 @@ async function signMessage(message) {
     copyToClipboard("error");
     displayResponse("Signature Denied");
     copyToClipboard("error");
-    returnToApp();
   }
+
+  returnToApp();
 }
 
 async function copyToClipboard(response) {
@@ -30572,4 +30571,4 @@ function displayResponse(text, response) {
   }
 }
 },{"regenerator-runtime/runtime":"KA2S","ethers":"iS6H","ethers/lib/utils":"if8b"}]},{},["Focm"], null)
-//# sourceMappingURL=/game-web3wallet/game-web3wallet.ece581fa.js.map
+//# sourceMappingURL=/game-web3wallet/game-web3wallet.3305b4b4.js.map
