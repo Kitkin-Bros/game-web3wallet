@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", loadApp());
 function returnToApp() {
     // console.log("redirect")
     //var user_agent_header = navigator.userAgent;
-    // window.location.href = "http://yandex.ru";
+    window.location.href = "madbackpackdeeplink:// ";
     // setTimeout(function () {
     //     window.location.href = "madbackpackdeeplink:// ";
     // }, 25);
@@ -23,8 +23,6 @@ function returnToApp() {
 
 
 async function loadApp() {
-    window.location.href = "http://yandex.ru";
-
     provider = new ethers.providers.Web3Provider(window.ethereum, "any");
     signer = provider.getSigner();
     if (!signer) window.location.reload();
@@ -88,6 +86,8 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data) {
         displayResponse("Transaction Denied");
         copyToClipboard("error");
     }
+
+    returnToApp()
 }
 
 async function signMessage(message) {
@@ -101,6 +101,8 @@ async function signMessage(message) {
         displayResponse("Signature Denied");
         copyToClipboard("error");
     }
+
+    returnToApp()
 }
 
 async function copyToClipboard(response) {
