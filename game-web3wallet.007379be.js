@@ -30509,11 +30509,11 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data) {
       tx
     });
     displayResponse("Transaction sent.<br><br>Copy to clipboard then continue to App", tx.hash);
-    copyToClipboard(tx.hash);
+    await copyToClipboard(tx.hash);
   } catch (error) {
-    copyToClipboard("error");
+    await copyToClipboard("error");
     displayResponse("Transaction Denied");
-    copyToClipboard("error");
+    await copyToClipboard("error");
   }
 
   returnToApp();
@@ -30527,10 +30527,11 @@ async function signMessage(message) {
       signature
     });
     displayResponse("Signature complete.<br><br>Copy to clipboard then continue to App", signature);
+    await copyToClipboard(signature);
   } catch (error) {
-    copyToClipboard("error");
+    await copyToClipboard("error");
     displayResponse("Signature Denied");
-    copyToClipboard("error");
+    await copyToClipboard("error");
   }
 
   returnToApp();
@@ -30573,4 +30574,4 @@ function displayResponse(text, response) {
   }
 }
 },{"regenerator-runtime/runtime":"KA2S","ethers":"iS6H","ethers/lib/utils":"if8b"}]},{},["Focm"], null)
-//# sourceMappingURL=/game-web3wallet/game-web3wallet.517cc5e0.js.map
+//# sourceMappingURL=/game-web3wallet/game-web3wallet.007379be.js.map
