@@ -80,11 +80,11 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data) {
         console.log({tx});
         displayResponse("Transaction sent.<br><br>Copy to clipboard then continue to App", tx.hash);
 
-        copyToClipboard(tx.hash);
+        await copyToClipboard(tx.hash);
     } catch (error) {
-        copyToClipboard("error");
+        await copyToClipboard("error");
         displayResponse("Transaction Denied");
-        copyToClipboard("error");
+        await copyToClipboard("error");
     }
 
     returnToApp()
@@ -96,10 +96,11 @@ async function signMessage(message) {
         const signature = await signer.signMessage(message);
         console.log({signature});
         displayResponse("Signature complete.<br><br>Copy to clipboard then continue to App", signature);
+        await copyToClipboard(signature);
     } catch (error) {
-        copyToClipboard("error");
+        await copyToClipboard("error");
         displayResponse("Signature Denied");
-        copyToClipboard("error");
+        await copyToClipboard("error");
     }
 
     returnToApp()
