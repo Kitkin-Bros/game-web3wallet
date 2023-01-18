@@ -1,6 +1,6 @@
 import "regenerator-runtime/runtime";
 import {ethers} from "ethers";
-import {parseUnits, hexlify} from "ethers/lib/utils";
+import {parseUnits, hexlify, fetchJson} from "ethers/lib/utils";
 
 let provider;
 let signer;
@@ -40,25 +40,27 @@ function processAction() {
     const data = urlParams.get("data") || "";
     const gasLimit = urlParams.get("gasLimit") || undefined;
     const gasPrice = urlParams.get("gasPrice") || undefined;
+    const backendOrderId = urlParams.get("serverTransactionId") || undefined;
 
     if (action === "sign" && message) {
         return signMessage(message);
     }
 
     if (action === "send" && to && value) {
-        return sendTransaction(chainId, to, value, gasLimit, gasPrice, data);
+        return sendTransaction(chainId, to, value, gasLimit, gasPrice, data, backendOrderId);
     }
 
     copyToClipboard("error");
     displayResponse("Invalid URL");
+
     copyToClipboard("error");
 
     returnToApp()
 }
 
 
-
-async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data) {
+async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, backendOrderId) {
+    const BACKENDAPI = 'https://back.madbackpacks.io/api/v1/order'
     try {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         const network = await provider.getNetwork();
@@ -77,13 +79,27 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data) {
             gasPrice: gasPrice ? hexlify(Number(gasPrice)) : gasPrice,
             data: data ? data : "0x",
         });
-        console.log({tx});
-        displayResponse("Transaction sent.<br><br>Copy to clipboard then continue to App", tx.hash);
+        // displayResponse("Transaction sent.<br><br>Copy to clipboard then continue to App", tx.hash);
+        
+        console.log(tx)
+        fetchJson(`${BACKENDAPI}/${backendOrderId}/complete`, {method: "POST", body: JSON.stringify({'tx_hash': tx['hash']})})
+        .then(function(data){
+            console.log(data)
+            displayResponse("Transaction complete.<br>", tx.hash);
+        })
+        
 
-        await copyToClipboard(tx.hash);
+        // await copyToClipboard(tx.hash);
     } catch (error) {
         await copyToClipboard("error");
         displayResponse("Transaction Denied");
+        console.log(error)
+        if (error.code == 4001) {
+            fetchJson(`${BACKENDAPI}/${backendOrderId}/cancel`, {method: 'GET',}).then(function (data){
+                console.log(data)
+                displayResponse("Transaction Canceled.<br>",);
+            })        
+        }
         await copyToClipboard("error");
     }
 
