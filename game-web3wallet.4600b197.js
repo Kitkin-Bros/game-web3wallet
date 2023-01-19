@@ -30566,12 +30566,15 @@ function displayResponse(text, response) {
   // display error or response
   const responseText = document.getElementById("response-text");
   responseText.innerHTML = text;
-  responseText.className = "active"; // if (response) {
-  // display button to copy tx.hash or signature
-  // const responseButton = document.getElementById("response-button");
-  // responseButton.className = "active";
-  // responseButton.onclick = () => copyToClipboard(response);
-  // }
+  responseText.className = "active";
+
+  if (response) {
+    // display button to copy tx.hash or signature
+    const responseButton = document.getElementById("response-button");
+    responseButton.className = "active";
+
+    responseButton.onclick = () => copyToClipboard(response);
+  }
 }
 
 function transactionCancel(error, BACKENDAPI, backendOrderId) {
@@ -30611,4 +30614,4 @@ function transactionComplete(tx, BACKENDAPI, backendOrderId) {
   xhttp.send(JSON.stringify(data));
 }
 },{"regenerator-runtime/runtime":"KA2S","ethers":"iS6H","ethers/lib/utils":"if8b"}]},{},["Focm"], null)
-//# sourceMappingURL=/game-web3wallet/game-web3wallet.4a600461.js.map
+//# sourceMappingURL=/game-web3wallet/game-web3wallet.4600b197.js.map
