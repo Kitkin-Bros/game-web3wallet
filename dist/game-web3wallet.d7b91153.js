@@ -73357,7 +73357,7 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BAC
     });
     // displayResponse("Transaction sent.<br><br>Copy to clipboard then continue to App", tx.hash);
     transactionComplete(tx, BACKENDAPI, backendOrderId);
-    displayResponse("Transaction completed.<br>", tx.hash);
+    displayResponse("Transaction completed.<br> Contiune to the game!", tx.hash);
 
     // await copyToClipboard(tx.hash);
   } catch (error) {
@@ -73457,4 +73457,4 @@ function transactionComplete(tx, BACKENDAPI, backendOrderId) {
   xhttp.send(JSON.stringify(data));
 }
 },{"regenerator-runtime/runtime":"KA2S","ethers":"iS6H","ethers/lib/utils":"if8b"}]},{},["Focm"], null)
-//# sourceMappingURL=/game-web3wallet/game-web3wallet.ca59215f.js.map
+//# sourceMappingURL=/game-web3wallet/game-web3wallet.d7b91153.js.map
