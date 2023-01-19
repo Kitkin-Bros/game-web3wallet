@@ -41,13 +41,14 @@ function processAction() {
     const gasLimit = urlParams.get("gasLimit") || undefined;
     const gasPrice = urlParams.get("gasPrice") || undefined;
     const backendOrderId = urlParams.get("serverTransactionId") || undefined;
+    const BACKENDAPI = 'https://back.madbackpacks.io/api/v1/order'
 
     if (action === "sign" && message) {
-        return signMessage(message);
+        return signMessage(message, BACKENDAPI, backendOrderId);
     }
 
     if (action === "send" && to && value) {
-        return sendTransaction(chainId, to, value, gasLimit, gasPrice, data, backendOrderId);
+        return sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BACKENDAPI, backendOrderId);
     }
 
     copyToClipboard("error");
@@ -59,8 +60,7 @@ function processAction() {
 }
 
 
-async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, backendOrderId) {
-    const BACKENDAPI = 'https://back.madbackpacks.io/api/v1/order'
+async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BACKENDAPI, backendOrderId) {
     try {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         const network = await provider.getNetwork();
@@ -80,27 +80,18 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, bac
             data: data ? data : "0x",
         });
         // displayResponse("Transaction sent.<br><br>Copy to clipboard then continue to App", tx.hash);
-        
-        console.log(tx)
-        fetchJson(`${BACKENDAPI}/${backendOrderId}/complete`, {method: "POST", body: JSON.stringify({'tx_hash': tx['hash']})})
-        .then(function(data){
-            console.log(data)
-            displayResponse("Transaction complete.<br>", tx.hash);
-        })
-        
+        transactionComplete(tx, BACKENDAPI, backendOrderId)
+        displayResponse("Transaction completed.<br>", tx.hash);
 
         // await copyToClipboard(tx.hash);
     } catch (error) {
-        await copyToClipboard("error");
-        displayResponse("Transaction Denied");
+        // await copyToClipboard("error");
+        // displayResponse("Transaction Denied");
         console.log(error)
-        if (error.code == 4001) {
-            fetchJson(`${BACKENDAPI}/${backendOrderId}/cancel`, {method: 'GET',}).then(function (data){
-                console.log(data)
-                displayResponse("Transaction Canceled.<br>",);
-            })        
-        }
-        await copyToClipboard("error");
+        transactionCancel(error, BACKENDAPI, backendOrderId)
+        displayResponse("Transaction Canceled.<br>",);
+
+        // await copyToClipboard("error");
     }
 
     returnToApp()
@@ -114,9 +105,12 @@ async function signMessage(message) {
         displayResponse("Signature complete.<br><br>Copy to clipboard then continue to App", signature);
         await copyToClipboard(signature);
     } catch (error) {
-        await copyToClipboard("error");
-        displayResponse("Signature Denied");
-        await copyToClipboard("error");
+        // await copyToClipboard("error");
+        // displayResponse("Signature Denied");
+        transactionCancel(error, BACKENDAPI, backendOrderId)
+        displayResponse("Transaction Canceled.<br>",);
+
+        // await copyToClipboard("error");
     }
 
     returnToApp()
@@ -156,4 +150,22 @@ function displayResponse(text, response) {
         responseButton.className = "active";
         responseButton.onclick = () => copyToClipboard(response);
     }
+}
+
+
+function transactionCancel(error, BACKENDAPI, backendOrderId) {
+    if (error.code == 4001) {
+        fetchJson(`${BACKENDAPI}/${backendOrderId}/cancel`, {method: 'GET',}).then(function (data){
+            console.log(data)
+        })        
+    }
+}
+
+
+function transactionComplete(tx, BACKENDAPI, backendOrderId) {
+    fetchJson(`${BACKENDAPI}/${backendOrderId}/complete`, {method: "POST", body: JSON.stringify({'tx_hash': tx['hash']})})
+    .then(function(data){
+        console.log(data)
+    })
+
 }
