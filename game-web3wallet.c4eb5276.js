@@ -73424,7 +73424,8 @@ function displayResponse(text, response) {
 function transactionCancel(error, BACKENDAPI, backendOrderId) {
   if (error.code == 4001) {
     (0, _utils.fetchJson)(`${BACKENDAPI}/${backendOrderId}/cancel`, {
-      method: 'GET'
+    mode: 'no-cors',
+    method: 'GET'
     }).then(function (data) {
       console.log(data);
     });
@@ -73432,7 +73433,11 @@ function transactionCancel(error, BACKENDAPI, backendOrderId) {
 }
 function transactionComplete(tx, BACKENDAPI, backendOrderId) {
   (0, _utils.fetchJson)(`${BACKENDAPI}/${backendOrderId}/complete`, {
+    mode: 'no-cors',
     method: "POST",
+    headers: {
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify({
       'tx_hash': tx['hash']
     })
