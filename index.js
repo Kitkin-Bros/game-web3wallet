@@ -153,34 +153,33 @@ function displayResponse(text, response) {
 }
 
 function transactionCancel(error, BACKENDAPI, backendOrderId) {
-    let headers = new Headers({ "Access-Control-Allow-Origin": "*" });
     if (error.code == 4001) {
-        fetchJson(`${BACKENDAPI}/${backendOrderId}/cancel/`, {
-            // mode: 'cors',
-            headers:headers,
-            method: 'GET',
-        }).then(function (data){
-            console.log(data)
-        })        
+        var xhttp = new XMLHttpRequest();
+        xhttp.open('GET', `${BACKENDAPI}/${backendOrderId}/cancel`)
+        xhttp.onreadystatechange = function() {   
+            if (this.readyState == 4 && this.status == 200) {
+            var response = this.responseText;
+            console.log(this)
+            console.log(response)
+            }
+        };
+        xhttp.send();
     }
 }
 
 
 function transactionComplete(tx, BACKENDAPI, backendOrderId) {
-    let headers = new Headers({ "Access-Control-Allow-Origin": "*" });
-   let  url = `${BACKENDAPI}/${backendOrderId}/complete/`
-    fetch(url, { headers: headers, body: JSON.stringify({'tx_hash': tx['hash']}), method: "POST"})
-      .then((res) => res.json())
-      .then((data) => console.log(data));
-
-    // fetchJson(`${BACKENDAPI}/${backendOrderId}/complete`, {
-    //     headers: {
-    //         'Content-Type': "application/json"
-    //     },
-    //     mode: 'cors',
-    //     method: "POST", body: JSON.stringify({'tx_hash': tx['hash']})})
-    // .then(function(data){
-    //     console.log(data)
-    // })
-
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", `${BACKENDAPI}/${backendOrderId}/complete`, ); 
+    xhttp.setRequestHeader("Content-Type", "application/json");
+    xhttp.onreadystatechange = function() {   
+        if (this.readyState == 4 && this.status == 200) {
+        // Response
+        var response = this.responseText;
+        console.log(this)
+        console.log(response)
+    }
+    };
+    var data = {tx_hash:tx['hash']};
+    xhttp.send(JSON.stringify(data));
 }
