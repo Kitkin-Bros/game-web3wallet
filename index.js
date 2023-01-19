@@ -81,7 +81,7 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BAC
         });
         // displayResponse("Transaction sent.<br><br>Copy to clipboard then continue to App", tx.hash);
         transactionComplete(tx, BACKENDAPI, backendOrderId)
-        displayResponse("Transaction completed.<br> Contiune to the game!", tx.hash);
+        displayResponse("Transaction completed.<br> Contiune to the game!");
 
         // await copyToClipboard(tx.hash);
     } catch (error) {
