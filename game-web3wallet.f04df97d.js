@@ -130,7 +130,6 @@ var runtime = (function (exports) {
 
   var Op = Object.prototype;
   var hasOwn = Op.hasOwnProperty;
-  var defineProperty = Object.defineProperty || function (obj, key, desc) { obj[key] = desc.value; };
   var undefined; // More compressible than void 0.
   var $Symbol = typeof Symbol === "function" ? Symbol : {};
   var iteratorSymbol = $Symbol.iterator || "@@iterator";
@@ -163,7 +162,7 @@ var runtime = (function (exports) {
 
     // The ._invoke method unifies the implementations of the .next,
     // .throw, and .return methods.
-    defineProperty(generator, "_invoke", { value: makeInvokeMethod(innerFn, self, context) });
+    generator._invoke = makeInvokeMethod(innerFn, self, context);
 
     return generator;
   }
@@ -224,12 +223,8 @@ var runtime = (function (exports) {
   var Gp = GeneratorFunctionPrototype.prototype =
     Generator.prototype = Object.create(IteratorPrototype);
   GeneratorFunction.prototype = GeneratorFunctionPrototype;
-  defineProperty(Gp, "constructor", { value: GeneratorFunctionPrototype, configurable: true });
-  defineProperty(
-    GeneratorFunctionPrototype,
-    "constructor",
-    { value: GeneratorFunction, configurable: true }
-  );
+  define(Gp, "constructor", GeneratorFunctionPrototype);
+  define(GeneratorFunctionPrototype, "constructor", GeneratorFunction);
   GeneratorFunction.displayName = define(
     GeneratorFunctionPrototype,
     toStringTagSymbol,
@@ -339,7 +334,7 @@ var runtime = (function (exports) {
 
     // Define the unified helper method that is used to implement .next,
     // .throw, and .return (see defineIteratorMethods).
-    defineProperty(this, "_invoke", { value: enqueue });
+    this._invoke = enqueue;
   }
 
   defineIteratorMethods(AsyncIterator.prototype);
@@ -449,32 +444,31 @@ var runtime = (function (exports) {
   // delegate iterator, or by modifying context.method and context.arg,
   // setting context.delegate to null, and returning the ContinueSentinel.
   function maybeInvokeDelegate(delegate, context) {
-    var methodName = context.method;
-    var method = delegate.iterator[methodName];
+    var method = delegate.iterator[context.method];
     if (method === undefined) {
       // A .throw or .return when the delegate iterator has no .throw
-      // method, or a missing .next mehtod, always terminate the
-      // yield* loop.
+      // method always terminates the yield* loop.
       context.delegate = null;
 
-      // Note: ["return"] must be used for ES3 parsing compatibility.
-      if (methodName === "throw" && delegate.iterator["return"]) {
-        // If the delegate iterator has a return method, give it a
-        // chance to clean up.
-        context.method = "return";
-        context.arg = undefined;
-        maybeInvokeDelegate(delegate, context);
+      if (context.method === "throw") {
+        // Note: ["return"] must be used for ES3 parsing compatibility.
+        if (delegate.iterator["return"]) {
+          // If the delegate iterator has a return method, give it a
+          // chance to clean up.
+          context.method = "return";
+          context.arg = undefined;
+          maybeInvokeDelegate(delegate, context);
 
-        if (context.method === "throw") {
-          // If maybeInvokeDelegate(context) changed context.method from
-          // "return" to "throw", let that override the TypeError below.
-          return ContinueSentinel;
+          if (context.method === "throw") {
+            // If maybeInvokeDelegate(context) changed context.method from
+            // "return" to "throw", let that override the TypeError below.
+            return ContinueSentinel;
+          }
         }
-      }
-      if (methodName !== "return") {
+
         context.method = "throw";
         context.arg = new TypeError(
-          "The iterator does not provide a '" + methodName + "' method");
+          "The iterator does not provide a 'throw' method");
       }
 
       return ContinueSentinel;
@@ -578,8 +572,7 @@ var runtime = (function (exports) {
     this.reset(true);
   }
 
-  exports.keys = function(val) {
-    var object = Object(val);
+  exports.keys = function(object) {
     var keys = [];
     for (var key in object) {
       keys.push(key);
@@ -4344,7 +4337,9 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.Logger = exports.LogLevel = exports.ErrorCode = void 0;
+
 var _version = require("./_version");
+
 let _permanentCensorErrors = false;
 let _censorErrors = false;
 const LogLevels = {
@@ -4357,34 +4352,42 @@ const LogLevels = {
 };
 let _logLevel = LogLevels["default"];
 let _globalLogger = null;
+
 function _checkNormalize() {
   try {
-    const missing = [];
-    // Make sure all forms of normalization are supported
+    const missing = []; // Make sure all forms of normalization are supported
+
     ["NFD", "NFC", "NFKD", "NFKC"].forEach(form => {
       try {
         if ("test".normalize(form) !== "test") {
           throw new Error("bad normalize");
         }
+
         ;
       } catch (error) {
         missing.push(form);
       }
     });
+
     if (missing.length) {
       throw new Error("missing " + missing.join(", "));
     }
+
     if (String.fromCharCode(0xe9).normalize("NFD") !== String.fromCharCode(0x65, 0x0301)) {
       throw new Error("broken implementation");
     }
   } catch (error) {
     return error.message;
   }
+
   return null;
 }
+
 const _normalizeError = _checkNormalize();
+
 var LogLevel;
 exports.LogLevel = LogLevel;
+
 (function (LogLevel) {
   LogLevel["DEBUG"] = "DEBUG";
   LogLevel["INFO"] = "INFO";
@@ -4392,51 +4395,52 @@ exports.LogLevel = LogLevel;
   LogLevel["ERROR"] = "ERROR";
   LogLevel["OFF"] = "OFF";
 })(LogLevel || (exports.LogLevel = LogLevel = {}));
+
 var ErrorCode;
 exports.ErrorCode = ErrorCode;
+
 (function (ErrorCode) {
   ///////////////////
   // Generic Errors
   // Unknown Error
-  ErrorCode["UNKNOWN_ERROR"] = "UNKNOWN_ERROR";
-  // Not Implemented
-  ErrorCode["NOT_IMPLEMENTED"] = "NOT_IMPLEMENTED";
-  // Unsupported Operation
+  ErrorCode["UNKNOWN_ERROR"] = "UNKNOWN_ERROR"; // Not Implemented
+
+  ErrorCode["NOT_IMPLEMENTED"] = "NOT_IMPLEMENTED"; // Unsupported Operation
   //   - operation
-  ErrorCode["UNSUPPORTED_OPERATION"] = "UNSUPPORTED_OPERATION";
-  // Network Error (i.e. Ethereum Network, such as an invalid chain ID)
+
+  ErrorCode["UNSUPPORTED_OPERATION"] = "UNSUPPORTED_OPERATION"; // Network Error (i.e. Ethereum Network, such as an invalid chain ID)
   //   - event ("noNetwork" is not re-thrown in provider.ready; otherwise thrown)
-  ErrorCode["NETWORK_ERROR"] = "NETWORK_ERROR";
-  // Some sort of bad response from the server
-  ErrorCode["SERVER_ERROR"] = "SERVER_ERROR";
-  // Timeout
-  ErrorCode["TIMEOUT"] = "TIMEOUT";
-  ///////////////////
+
+  ErrorCode["NETWORK_ERROR"] = "NETWORK_ERROR"; // Some sort of bad response from the server
+
+  ErrorCode["SERVER_ERROR"] = "SERVER_ERROR"; // Timeout
+
+  ErrorCode["TIMEOUT"] = "TIMEOUT"; ///////////////////
   // Operational  Errors
   // Buffer Overrun
-  ErrorCode["BUFFER_OVERRUN"] = "BUFFER_OVERRUN";
-  // Numeric Fault
+
+  ErrorCode["BUFFER_OVERRUN"] = "BUFFER_OVERRUN"; // Numeric Fault
   //   - operation: the operation being executed
   //   - fault: the reason this faulted
-  ErrorCode["NUMERIC_FAULT"] = "NUMERIC_FAULT";
-  ///////////////////
+
+  ErrorCode["NUMERIC_FAULT"] = "NUMERIC_FAULT"; ///////////////////
   // Argument Errors
   // Missing new operator to an object
   //  - name: The name of the class
-  ErrorCode["MISSING_NEW"] = "MISSING_NEW";
-  // Invalid argument (e.g. value is incompatible with type) to a function:
+
+  ErrorCode["MISSING_NEW"] = "MISSING_NEW"; // Invalid argument (e.g. value is incompatible with type) to a function:
   //   - argument: The argument name that was invalid
   //   - value: The value of the argument
-  ErrorCode["INVALID_ARGUMENT"] = "INVALID_ARGUMENT";
-  // Missing argument to a function:
+
+  ErrorCode["INVALID_ARGUMENT"] = "INVALID_ARGUMENT"; // Missing argument to a function:
   //   - count: The number of arguments received
   //   - expectedCount: The number of arguments expected
-  ErrorCode["MISSING_ARGUMENT"] = "MISSING_ARGUMENT";
-  // Too many arguments
+
+  ErrorCode["MISSING_ARGUMENT"] = "MISSING_ARGUMENT"; // Too many arguments
   //   - count: The number of arguments received
   //   - expectedCount: The number of arguments expected
-  ErrorCode["UNEXPECTED_ARGUMENT"] = "UNEXPECTED_ARGUMENT";
-  ///////////////////
+
+  ErrorCode["UNEXPECTED_ARGUMENT"] = "UNEXPECTED_ARGUMENT"; ///////////////////
   // Blockchain Errors
   // Call exception
   //  - transaction: the transaction
@@ -4446,29 +4450,32 @@ exports.ErrorCode = ErrorCode;
   //  - errorSignature?: The EIP848 error signature
   //  - errorArgs?: The EIP848 error parameters
   //  - reason: The reason (only for EIP848 "Error(string)")
-  ErrorCode["CALL_EXCEPTION"] = "CALL_EXCEPTION";
-  // Insufficient funds (< value + gasLimit * gasPrice)
+
+  ErrorCode["CALL_EXCEPTION"] = "CALL_EXCEPTION"; // Insufficient funds (< value + gasLimit * gasPrice)
   //   - transaction: the transaction attempted
-  ErrorCode["INSUFFICIENT_FUNDS"] = "INSUFFICIENT_FUNDS";
-  // Nonce has already been used
+
+  ErrorCode["INSUFFICIENT_FUNDS"] = "INSUFFICIENT_FUNDS"; // Nonce has already been used
   //   - transaction: the transaction attempted
-  ErrorCode["NONCE_EXPIRED"] = "NONCE_EXPIRED";
-  // The replacement fee for the transaction is too low
+
+  ErrorCode["NONCE_EXPIRED"] = "NONCE_EXPIRED"; // The replacement fee for the transaction is too low
   //   - transaction: the transaction attempted
-  ErrorCode["REPLACEMENT_UNDERPRICED"] = "REPLACEMENT_UNDERPRICED";
-  // The gas limit could not be estimated
+
+  ErrorCode["REPLACEMENT_UNDERPRICED"] = "REPLACEMENT_UNDERPRICED"; // The gas limit could not be estimated
   //   - transaction: the transaction passed to estimateGas
-  ErrorCode["UNPREDICTABLE_GAS_LIMIT"] = "UNPREDICTABLE_GAS_LIMIT";
-  // The transaction was replaced by one with a higher gas price
+
+  ErrorCode["UNPREDICTABLE_GAS_LIMIT"] = "UNPREDICTABLE_GAS_LIMIT"; // The transaction was replaced by one with a higher gas price
   //   - reason: "cancelled", "replaced" or "repriced"
   //   - cancelled: true if reason == "cancelled" or reason == "replaced")
   //   - hash: original transaction hash
   //   - replacement: the full TransactionsResponse for the replacement
   //   - receipt: the receipt of the replacement
+
   ErrorCode["TRANSACTION_REPLACED"] = "TRANSACTION_REPLACED";
 })(ErrorCode || (exports.ErrorCode = ErrorCode = {}));
+
 ;
 const HEX = "0123456789abcdef";
+
 class Logger {
   constructor(version) {
     Object.defineProperty(this, "version", {
@@ -4477,46 +4484,60 @@ class Logger {
       writable: false
     });
   }
+
   _log(logLevel, args) {
     const level = logLevel.toLowerCase();
+
     if (LogLevels[level] == null) {
       this.throwArgumentError("invalid log level name", "logLevel", logLevel);
     }
+
     if (_logLevel > LogLevels[level]) {
       return;
     }
+
     console.log.apply(console, args);
   }
+
   debug(...args) {
     this._log(Logger.levels.DEBUG, args);
   }
+
   info(...args) {
     this._log(Logger.levels.INFO, args);
   }
+
   warn(...args) {
     this._log(Logger.levels.WARNING, args);
   }
+
   makeError(message, code, params) {
     // Errors are being censored
     if (_censorErrors) {
       return this.makeError("censored error", code, {});
     }
+
     if (!code) {
       code = Logger.errors.UNKNOWN_ERROR;
     }
+
     if (!params) {
       params = {};
     }
+
     const messageDetails = [];
     Object.keys(params).forEach(key => {
       const value = params[key];
+
       try {
         if (value instanceof Uint8Array) {
           let hex = "";
+
           for (let i = 0; i < value.length; i++) {
             hex += HEX[value[i] >> 4];
             hex += HEX[value[i] & 0x0f];
           }
+
           messageDetails.push(key + "=Uint8Array(0x" + hex + ")");
         } else {
           messageDetails.push(key + "=" + JSON.stringify(value));
@@ -4528,10 +4549,12 @@ class Logger {
     messageDetails.push(`code=${code}`);
     messageDetails.push(`version=${this.version}`);
     const reason = message;
+
     if (messageDetails.length) {
       message += " (" + messageDetails.join(", ") + ")";
-    }
-    // @TODO: Any??
+    } // @TODO: Any??
+
+
     const error = new Error(message);
     error.reason = reason;
     error.code = code;
@@ -4540,31 +4563,39 @@ class Logger {
     });
     return error;
   }
+
   throwError(message, code, params) {
     throw this.makeError(message, code, params);
   }
+
   throwArgumentError(message, name, value) {
     return this.throwError(message, Logger.errors.INVALID_ARGUMENT, {
       argument: name,
       value: value
     });
   }
+
   assert(condition, message, code, params) {
     if (!!condition) {
       return;
     }
+
     this.throwError(message, code, params);
   }
+
   assertArgument(condition, message, name, value) {
     if (!!condition) {
       return;
     }
+
     this.throwArgumentError(message, name, value);
   }
+
   checkNormalize(message) {
     if (message == null) {
       message = "platform missing String.prototype.normalize";
     }
+
     if (_normalizeError) {
       this.throwError("platform missing String.prototype.normalize", Logger.errors.UNSUPPORTED_OPERATION, {
         operation: "String.prototype.normalize",
@@ -4572,13 +4603,16 @@ class Logger {
       });
     }
   }
+
   checkSafeUint53(value, message) {
     if (typeof value !== "number") {
       return;
     }
+
     if (message == null) {
       message = "value not safe";
     }
+
     if (value < 0 || value >= 0x1fffffffffffff) {
       this.throwError(message, Logger.errors.NUMERIC_FAULT, {
         operation: "checkSafeInteger",
@@ -4586,6 +4620,7 @@ class Logger {
         value: value
       });
     }
+
     if (value % 1) {
       this.throwError(message, Logger.errors.NUMERIC_FAULT, {
         operation: "checkSafeInteger",
@@ -4594,18 +4629,21 @@ class Logger {
       });
     }
   }
+
   checkArgumentCount(count, expectedCount, message) {
     if (message) {
       message = ": " + message;
     } else {
       message = "";
     }
+
     if (count < expectedCount) {
       this.throwError("missing argument" + message, Logger.errors.MISSING_ARGUMENT, {
         count: count,
         expectedCount: expectedCount
       });
     }
+
     if (count > expectedCount) {
       this.throwError("too many arguments" + message, Logger.errors.UNEXPECTED_ARGUMENT, {
         count: count,
@@ -4613,6 +4651,7 @@ class Logger {
       });
     }
   }
+
   checkNew(target, kind) {
     if (target === Object || target == null) {
       this.throwError("missing new", Logger.errors.MISSING_NEW, {
@@ -4620,6 +4659,7 @@ class Logger {
       });
     }
   }
+
   checkAbstract(target, kind) {
     if (target === kind) {
       this.throwError("cannot instantiate abstract class " + JSON.stringify(kind.name) + " directly; use a sub-class", Logger.errors.UNSUPPORTED_OPERATION, {
@@ -4632,41 +4672,53 @@ class Logger {
       });
     }
   }
+
   static globalLogger() {
     if (!_globalLogger) {
       _globalLogger = new Logger(_version.version);
     }
+
     return _globalLogger;
   }
+
   static setCensorship(censorship, permanent) {
     if (!censorship && permanent) {
       this.globalLogger().throwError("cannot permanently disable censorship", Logger.errors.UNSUPPORTED_OPERATION, {
         operation: "setCensorship"
       });
     }
+
     if (_permanentCensorErrors) {
       if (!censorship) {
         return;
       }
+
       this.globalLogger().throwError("error censorship permanent", Logger.errors.UNSUPPORTED_OPERATION, {
         operation: "setCensorship"
       });
     }
+
     _censorErrors = !!censorship;
     _permanentCensorErrors = !!permanent;
   }
+
   static setLogLevel(logLevel) {
     const level = LogLevels[logLevel.toLowerCase()];
+
     if (level == null) {
       Logger.globalLogger().warn("invalid log level - " + logLevel);
       return;
     }
+
     _logLevel = level;
   }
+
   static from(version) {
     return new Logger(version);
   }
+
 }
+
 exports.Logger = Logger;
 Logger.errors = ErrorCode;
 Logger.levels = LogLevel;
@@ -4701,74 +4753,98 @@ exports.joinSignature = joinSignature;
 exports.splitSignature = splitSignature;
 exports.stripZeros = stripZeros;
 exports.zeroPad = zeroPad;
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
-const logger = new _logger.Logger(_version.version);
-///////////////////////////////
+
+const logger = new _logger.Logger(_version.version); ///////////////////////////////
+
 function isHexable(value) {
   return !!value.toHexString;
 }
+
 function addSlice(array) {
   if (array.slice) {
     return array;
   }
+
   array.slice = function () {
     const args = Array.prototype.slice.call(arguments);
     return addSlice(new Uint8Array(Array.prototype.slice.apply(array, args)));
   };
+
   return array;
 }
+
 function isBytesLike(value) {
   return isHexString(value) && !(value.length % 2) || isBytes(value);
 }
+
 function isInteger(value) {
   return typeof value === "number" && value == value && value % 1 === 0;
 }
+
 function isBytes(value) {
   if (value == null) {
     return false;
   }
+
   if (value.constructor === Uint8Array) {
     return true;
   }
+
   if (typeof value === "string") {
     return false;
   }
+
   if (!isInteger(value.length) || value.length < 0) {
     return false;
   }
+
   for (let i = 0; i < value.length; i++) {
     const v = value[i];
+
     if (!isInteger(v) || v < 0 || v >= 256) {
       return false;
     }
   }
+
   return true;
 }
+
 function arrayify(value, options) {
   if (!options) {
     options = {};
   }
+
   if (typeof value === "number") {
     logger.checkSafeUint53(value, "invalid arrayify value");
     const result = [];
+
     while (value) {
       result.unshift(value & 0xff);
       value = parseInt(String(value / 256));
     }
+
     if (result.length === 0) {
       result.push(0);
     }
+
     return addSlice(new Uint8Array(result));
   }
+
   if (options.allowMissingPrefix && typeof value === "string" && value.substring(0, 2) !== "0x") {
     value = "0x" + value;
   }
+
   if (isHexable(value)) {
     value = value.toHexString();
   }
+
   if (isHexString(value)) {
     let hex = value.substring(2);
+
     if (hex.length % 2) {
       if (options.hexPad === "left") {
         hex = "0x0" + hex.substring(2);
@@ -4778,17 +4854,23 @@ function arrayify(value, options) {
         logger.throwArgumentError("hex data is odd-length", "value", value);
       }
     }
+
     const result = [];
+
     for (let i = 0; i < hex.length; i += 2) {
       result.push(parseInt(hex.substring(i, i + 2), 16));
     }
+
     return addSlice(new Uint8Array(result));
   }
+
   if (isBytes(value)) {
     return addSlice(new Uint8Array(value));
   }
+
   return logger.throwArgumentError("invalid arrayify value", "value", value);
 }
+
 function concat(items) {
   const objects = items.map(item => arrayify(item));
   const length = objects.reduce((accum, item) => accum + item.length, 0);
@@ -4799,73 +4881,98 @@ function concat(items) {
   }, 0);
   return addSlice(result);
 }
+
 function stripZeros(value) {
   let result = arrayify(value);
+
   if (result.length === 0) {
     return result;
-  }
-  // Find the first non-zero entry
+  } // Find the first non-zero entry
+
+
   let start = 0;
+
   while (start < result.length && result[start] === 0) {
     start++;
-  }
-  // If we started with zeros, strip them
+  } // If we started with zeros, strip them
+
+
   if (start) {
     result = result.slice(start);
   }
+
   return result;
 }
+
 function zeroPad(value, length) {
   value = arrayify(value);
+
   if (value.length > length) {
     logger.throwArgumentError("value out of range", "value", arguments[0]);
   }
+
   const result = new Uint8Array(length);
   result.set(value, length - value.length);
   return addSlice(result);
 }
+
 function isHexString(value, length) {
   if (typeof value !== "string" || !value.match(/^0x[0-9A-Fa-f]*$/)) {
     return false;
   }
+
   if (length && value.length !== 2 + 2 * length) {
     return false;
   }
+
   return true;
 }
+
 const HexCharacters = "0123456789abcdef";
+
 function hexlify(value, options) {
   if (!options) {
     options = {};
   }
+
   if (typeof value === "number") {
     logger.checkSafeUint53(value, "invalid hexlify value");
     let hex = "";
+
     while (value) {
       hex = HexCharacters[value & 0xf] + hex;
       value = Math.floor(value / 16);
     }
+
     if (hex.length) {
       if (hex.length % 2) {
         hex = "0" + hex;
       }
+
       return "0x" + hex;
     }
+
     return "0x00";
   }
+
   if (typeof value === "bigint") {
     value = value.toString(16);
+
     if (value.length % 2) {
       return "0x0" + value;
     }
+
     return "0x" + value;
   }
+
   if (options.allowMissingPrefix && typeof value === "string" && value.substring(0, 2) !== "0x") {
     value = "0x" + value;
   }
+
   if (isHexable(value)) {
     return value.toHexString();
   }
+
   if (isHexString(value)) {
     if (value.length % 2) {
       if (options.hexPad === "left") {
@@ -4876,16 +4983,21 @@ function hexlify(value, options) {
         logger.throwArgumentError("hex data is odd-length", "value", value);
       }
     }
+
     return value.toLowerCase();
   }
+
   if (isBytes(value)) {
     let result = "0x";
+
     for (let i = 0; i < value.length; i++) {
       let v = value[i];
       result += HexCharacters[(v & 0xf0) >> 4] + HexCharacters[v & 0x0f];
     }
+
     return result;
   }
+
   return logger.throwArgumentError("invalid hexlify value", "value", value);
 }
 /*
@@ -4896,26 +5008,34 @@ function unoddify(value: BytesLike | Hexable | number): BytesLike | Hexable | nu
     return value;
 }
 */
+
+
 function hexDataLength(data) {
   if (typeof data !== "string") {
     data = hexlify(data);
   } else if (!isHexString(data) || data.length % 2) {
     return null;
   }
+
   return (data.length - 2) / 2;
 }
+
 function hexDataSlice(data, offset, endOffset) {
   if (typeof data !== "string") {
     data = hexlify(data);
   } else if (!isHexString(data) || data.length % 2) {
     logger.throwArgumentError("invalid hexData", "value", data);
   }
+
   offset = 2 + 2 * offset;
+
   if (endOffset != null) {
     return "0x" + data.substring(offset, 2 + 2 * endOffset);
   }
+
   return "0x" + data.substring(offset);
 }
+
 function hexConcat(items) {
   let result = "0x";
   items.forEach(item => {
@@ -4923,43 +5043,56 @@ function hexConcat(items) {
   });
   return result;
 }
+
 function hexValue(value) {
   const trimmed = hexStripZeros(hexlify(value, {
     hexPad: "left"
   }));
+
   if (trimmed === "0x") {
     return "0x0";
   }
+
   return trimmed;
 }
+
 function hexStripZeros(value) {
   if (typeof value !== "string") {
     value = hexlify(value);
   }
+
   if (!isHexString(value)) {
     logger.throwArgumentError("invalid hex string", "value", value);
   }
+
   value = value.substring(2);
   let offset = 0;
+
   while (offset < value.length && value[offset] === "0") {
     offset++;
   }
+
   return "0x" + value.substring(offset);
 }
+
 function hexZeroPad(value, length) {
   if (typeof value !== "string") {
     value = hexlify(value);
   } else if (!isHexString(value)) {
     logger.throwArgumentError("invalid hex string", "value", value);
   }
+
   if (value.length > 2 * length + 2) {
     logger.throwArgumentError("value out of range", "value", arguments[1]);
   }
+
   while (value.length < 2 * length + 2) {
     value = "0x0" + value.substring(2);
   }
+
   return value;
 }
+
 function splitSignature(signature) {
   const result = {
     r: "0x",
@@ -4968,58 +5101,67 @@ function splitSignature(signature) {
     recoveryParam: 0,
     v: 0
   };
+
   if (isBytesLike(signature)) {
     const bytes = arrayify(signature);
+
     if (bytes.length !== 65) {
       logger.throwArgumentError("invalid signature string; must be 65 bytes", "signature", signature);
-    }
-    // Get the r, s and v
+    } // Get the r, s and v
+
+
     result.r = hexlify(bytes.slice(0, 32));
     result.s = hexlify(bytes.slice(32, 64));
-    result.v = bytes[64];
-    // Allow a recid to be used as the v
+    result.v = bytes[64]; // Allow a recid to be used as the v
+
     if (result.v < 27) {
       if (result.v === 0 || result.v === 1) {
         result.v += 27;
       } else {
         logger.throwArgumentError("signature invalid v byte", "signature", signature);
       }
-    }
-    // Compute recoveryParam from v
-    result.recoveryParam = 1 - result.v % 2;
-    // Compute _vs from recoveryParam and s
+    } // Compute recoveryParam from v
+
+
+    result.recoveryParam = 1 - result.v % 2; // Compute _vs from recoveryParam and s
+
     if (result.recoveryParam) {
       bytes[32] |= 0x80;
     }
+
     result._vs = hexlify(bytes.slice(32, 64));
   } else {
     result.r = signature.r;
     result.s = signature.s;
     result.v = signature.v;
     result.recoveryParam = signature.recoveryParam;
-    result._vs = signature._vs;
-    // If the _vs is available, use it to populate missing s, v and recoveryParam
+    result._vs = signature._vs; // If the _vs is available, use it to populate missing s, v and recoveryParam
     // and verify non-missing s, v and recoveryParam
+
     if (result._vs != null) {
       const vs = zeroPad(arrayify(result._vs), 32);
-      result._vs = hexlify(vs);
-      // Set or check the recid
+      result._vs = hexlify(vs); // Set or check the recid
+
       const recoveryParam = vs[0] >= 128 ? 1 : 0;
+
       if (result.recoveryParam == null) {
         result.recoveryParam = recoveryParam;
       } else if (result.recoveryParam !== recoveryParam) {
         logger.throwArgumentError("signature recoveryParam mismatch _vs", "signature", signature);
-      }
-      // Set or check the s
+      } // Set or check the s
+
+
       vs[0] &= 0x7f;
       const s = hexlify(vs);
+
       if (result.s == null) {
         result.s = s;
       } else if (result.s !== s) {
         logger.throwArgumentError("signature v mismatch _vs", "signature", signature);
       }
-    }
-    // Use recid and v to populate each other
+    } // Use recid and v to populate each other
+
+
     if (result.recoveryParam == null) {
       if (result.v == null) {
         logger.throwArgumentError("signature missing v and recoveryParam", "signature", signature);
@@ -5033,44 +5175,56 @@ function splitSignature(signature) {
         result.v = 27 + result.recoveryParam;
       } else {
         const recId = result.v === 0 || result.v === 1 ? result.v : 1 - result.v % 2;
+
         if (result.recoveryParam !== recId) {
           logger.throwArgumentError("signature recoveryParam mismatch v", "signature", signature);
         }
       }
     }
+
     if (result.r == null || !isHexString(result.r)) {
       logger.throwArgumentError("signature missing or invalid r", "signature", signature);
     } else {
       result.r = hexZeroPad(result.r, 32);
     }
+
     if (result.s == null || !isHexString(result.s)) {
       logger.throwArgumentError("signature missing or invalid s", "signature", signature);
     } else {
       result.s = hexZeroPad(result.s, 32);
     }
+
     const vs = arrayify(result.s);
+
     if (vs[0] >= 128) {
       logger.throwArgumentError("signature s out of range", "signature", signature);
     }
+
     if (result.recoveryParam) {
       vs[0] |= 0x80;
     }
+
     const _vs = hexlify(vs);
+
     if (result._vs) {
       if (!isHexString(result._vs)) {
         logger.throwArgumentError("signature invalid _vs", "signature", signature);
       }
+
       result._vs = hexZeroPad(result._vs, 32);
-    }
-    // Set or check the _vs
+    } // Set or check the _vs
+
+
     if (result._vs == null) {
       result._vs = _vs;
     } else if (result._vs !== _vs) {
       logger.throwArgumentError("signature _vs mismatch v and s", "signature", signature);
     }
   }
+
   return result;
 }
+
 function joinSignature(signature) {
   signature = splitSignature(signature);
   return hexlify(concat([signature.r, signature.s, signature.recoveryParam ? "0x1c" : "0x1b"]));
@@ -5086,7 +5240,6 @@ const version = "bignumber/5.5.0";
 exports.version = version;
 },{}],"RA51":[function(require,module,exports) {
 "use strict";
-
 /**
  *  BigNumber
  *
@@ -5094,6 +5247,7 @@ exports.version = version;
  *  because it is used by elliptic, so it is required regardless.
  *
  */
+
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
@@ -5101,150 +5255,204 @@ exports.BigNumber = void 0;
 exports._base16To36 = _base16To36;
 exports._base36To16 = _base36To16;
 exports.isBigNumberish = isBigNumberish;
+
 var _bn = _interopRequireDefault(require("bn.js"));
+
 var _bytes = require("@ethersproject/bytes");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 var BN = _bn.default.BN;
 const logger = new _logger.Logger(_version.version);
 const _constructorGuard = {};
 const MAX_SAFE = 0x1fffffffffffff;
+
 function isBigNumberish(value) {
   return value != null && (BigNumber.isBigNumber(value) || typeof value === "number" && value % 1 === 0 || typeof value === "string" && !!value.match(/^-?[0-9]+$/) || (0, _bytes.isHexString)(value) || typeof value === "bigint" || (0, _bytes.isBytes)(value));
-}
-// Only warn about passing 10 into radix once
+} // Only warn about passing 10 into radix once
+
+
 let _warnedToStringRadix = false;
+
 class BigNumber {
   constructor(constructorGuard, hex) {
     logger.checkNew(new.target, BigNumber);
+
     if (constructorGuard !== _constructorGuard) {
       logger.throwError("cannot call constructor directly; use BigNumber.from", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
         operation: "new (BigNumber)"
       });
     }
+
     this._hex = hex;
     this._isBigNumber = true;
     Object.freeze(this);
   }
+
   fromTwos(value) {
     return toBigNumber(toBN(this).fromTwos(value));
   }
+
   toTwos(value) {
     return toBigNumber(toBN(this).toTwos(value));
   }
+
   abs() {
     if (this._hex[0] === "-") {
       return BigNumber.from(this._hex.substring(1));
     }
+
     return this;
   }
+
   add(other) {
     return toBigNumber(toBN(this).add(toBN(other)));
   }
+
   sub(other) {
     return toBigNumber(toBN(this).sub(toBN(other)));
   }
+
   div(other) {
     const o = BigNumber.from(other);
+
     if (o.isZero()) {
       throwFault("division by zero", "div");
     }
+
     return toBigNumber(toBN(this).div(toBN(other)));
   }
+
   mul(other) {
     return toBigNumber(toBN(this).mul(toBN(other)));
   }
+
   mod(other) {
     const value = toBN(other);
+
     if (value.isNeg()) {
       throwFault("cannot modulo negative values", "mod");
     }
+
     return toBigNumber(toBN(this).umod(value));
   }
+
   pow(other) {
     const value = toBN(other);
+
     if (value.isNeg()) {
       throwFault("cannot raise to negative values", "pow");
     }
+
     return toBigNumber(toBN(this).pow(value));
   }
+
   and(other) {
     const value = toBN(other);
+
     if (this.isNegative() || value.isNeg()) {
       throwFault("cannot 'and' negative values", "and");
     }
+
     return toBigNumber(toBN(this).and(value));
   }
+
   or(other) {
     const value = toBN(other);
+
     if (this.isNegative() || value.isNeg()) {
       throwFault("cannot 'or' negative values", "or");
     }
+
     return toBigNumber(toBN(this).or(value));
   }
+
   xor(other) {
     const value = toBN(other);
+
     if (this.isNegative() || value.isNeg()) {
       throwFault("cannot 'xor' negative values", "xor");
     }
+
     return toBigNumber(toBN(this).xor(value));
   }
+
   mask(value) {
     if (this.isNegative() || value < 0) {
       throwFault("cannot mask negative values", "mask");
     }
+
     return toBigNumber(toBN(this).maskn(value));
   }
+
   shl(value) {
     if (this.isNegative() || value < 0) {
       throwFault("cannot shift negative values", "shl");
     }
+
     return toBigNumber(toBN(this).shln(value));
   }
+
   shr(value) {
     if (this.isNegative() || value < 0) {
       throwFault("cannot shift negative values", "shr");
     }
+
     return toBigNumber(toBN(this).shrn(value));
   }
+
   eq(other) {
     return toBN(this).eq(toBN(other));
   }
+
   lt(other) {
     return toBN(this).lt(toBN(other));
   }
+
   lte(other) {
     return toBN(this).lte(toBN(other));
   }
+
   gt(other) {
     return toBN(this).gt(toBN(other));
   }
+
   gte(other) {
     return toBN(this).gte(toBN(other));
   }
+
   isNegative() {
     return this._hex[0] === "-";
   }
+
   isZero() {
     return toBN(this).isZero();
   }
+
   toNumber() {
     try {
       return toBN(this).toNumber();
     } catch (error) {
       throwFault("overflow", "toNumber", this.toString());
     }
+
     return null;
   }
+
   toBigInt() {
     try {
       return BigInt(this.toString());
     } catch (e) {}
+
     return logger.throwError("this platform does not support BigInt", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
       value: this.toString()
     });
   }
+
   toString() {
     // Lots of people expect this, which we do not support, so check (See: #889)
     if (arguments.length > 0) {
@@ -5259,60 +5467,76 @@ class BigNumber {
         logger.throwError("BigNumber.toString does not accept parameters", _logger.Logger.errors.UNEXPECTED_ARGUMENT, {});
       }
     }
+
     return toBN(this).toString(10);
   }
+
   toHexString() {
     return this._hex;
   }
+
   toJSON(key) {
     return {
       type: "BigNumber",
       hex: this.toHexString()
     };
   }
+
   static from(value) {
     if (value instanceof BigNumber) {
       return value;
     }
+
     if (typeof value === "string") {
       if (value.match(/^-?0x[0-9a-f]+$/i)) {
         return new BigNumber(_constructorGuard, toHex(value));
       }
+
       if (value.match(/^-?[0-9]+$/)) {
         return new BigNumber(_constructorGuard, toHex(new BN(value)));
       }
+
       return logger.throwArgumentError("invalid BigNumber string", "value", value);
     }
+
     if (typeof value === "number") {
       if (value % 1) {
         throwFault("underflow", "BigNumber.from", value);
       }
+
       if (value >= MAX_SAFE || value <= -MAX_SAFE) {
         throwFault("overflow", "BigNumber.from", value);
       }
+
       return BigNumber.from(String(value));
     }
+
     const anyValue = value;
+
     if (typeof anyValue === "bigint") {
       return BigNumber.from(anyValue.toString());
     }
+
     if ((0, _bytes.isBytes)(anyValue)) {
       return BigNumber.from((0, _bytes.hexlify)(anyValue));
     }
+
     if (anyValue) {
       // Hexable interface (takes priority)
       if (anyValue.toHexString) {
         const hex = anyValue.toHexString();
+
         if (typeof hex === "string") {
           return BigNumber.from(hex);
         }
       } else {
         // For now, handle legacy JSON-ified values (goes away in v6)
-        let hex = anyValue._hex;
-        // New-form JSON
+        let hex = anyValue._hex; // New-form JSON
+
         if (hex == null && anyValue.type === "BigNumber") {
           hex = anyValue.hex;
         }
+
         if (typeof hex === "string") {
           if ((0, _bytes.isHexString)(hex) || hex[0] === "-" && (0, _bytes.isHexString)(hex.substring(1))) {
             return BigNumber.from(hex);
@@ -5320,79 +5544,101 @@ class BigNumber {
         }
       }
     }
+
     return logger.throwArgumentError("invalid BigNumber value", "value", value);
   }
+
   static isBigNumber(value) {
     return !!(value && value._isBigNumber);
   }
-}
-// Normalize the hex string
+
+} // Normalize the hex string
+
+
 exports.BigNumber = BigNumber;
+
 function toHex(value) {
   // For BN, call on the hex string
   if (typeof value !== "string") {
     return toHex(value.toString(16));
-  }
-  // If negative, prepend the negative sign to the normalized positive value
+  } // If negative, prepend the negative sign to the normalized positive value
+
+
   if (value[0] === "-") {
     // Strip off the negative sign
-    value = value.substring(1);
-    // Cannot have multiple negative signs (e.g. "--0x04")
+    value = value.substring(1); // Cannot have multiple negative signs (e.g. "--0x04")
+
     if (value[0] === "-") {
       logger.throwArgumentError("invalid hex", "value", value);
-    }
-    // Call toHex on the positive component
-    value = toHex(value);
-    // Do not allow "-0x00"
+    } // Call toHex on the positive component
+
+
+    value = toHex(value); // Do not allow "-0x00"
+
     if (value === "0x00") {
       return value;
-    }
-    // Negate the value
+    } // Negate the value
+
+
     return "-" + value;
-  }
-  // Add a "0x" prefix if missing
+  } // Add a "0x" prefix if missing
+
+
   if (value.substring(0, 2) !== "0x") {
     value = "0x" + value;
-  }
-  // Normalize zero
+  } // Normalize zero
+
+
   if (value === "0x") {
     return "0x00";
-  }
-  // Make the string even length
+  } // Make the string even length
+
+
   if (value.length % 2) {
     value = "0x0" + value.substring(2);
-  }
-  // Trim to smallest even-length string
+  } // Trim to smallest even-length string
+
+
   while (value.length > 4 && value.substring(0, 4) === "0x00") {
     value = "0x" + value.substring(4);
   }
+
   return value;
 }
+
 function toBigNumber(value) {
   return BigNumber.from(toHex(value));
 }
+
 function toBN(value) {
   const hex = BigNumber.from(value).toHexString();
+
   if (hex[0] === "-") {
     return new BN("-" + hex.substring(3), 16);
   }
+
   return new BN(hex.substring(2), 16);
 }
+
 function throwFault(fault, operation, value) {
   const params = {
     fault: fault,
     operation: operation
   };
+
   if (value != null) {
     params.value = value;
   }
+
   return logger.throwError(fault, _logger.Logger.errors.NUMERIC_FAULT, params);
-}
-// value should have no prefix
+} // value should have no prefix
+
+
 function _base36To16(value) {
   return new BN(value, 36).toString(16);
-}
-// value should have no prefix
+} // value should have no prefix
+
+
 function _base16To36(value) {
   return new BN(value, 16).toString(36);
 }
@@ -5405,122 +5651,167 @@ Object.defineProperty(exports, "__esModule", {
 exports.FixedNumber = exports.FixedFormat = void 0;
 exports.formatFixed = formatFixed;
 exports.parseFixed = parseFixed;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var _bignumber = require("./bignumber");
+
 const logger = new _logger.Logger(_version.version);
 const _constructorGuard = {};
+
 const Zero = _bignumber.BigNumber.from(0);
+
 const NegativeOne = _bignumber.BigNumber.from(-1);
+
 function throwFault(message, fault, operation, value) {
   const params = {
     fault: fault,
     operation: operation
   };
+
   if (value !== undefined) {
     params.value = value;
   }
+
   return logger.throwError(message, _logger.Logger.errors.NUMERIC_FAULT, params);
-}
-// Constant to pull zeros from for multipliers
+} // Constant to pull zeros from for multipliers
+
+
 let zeros = "0";
+
 while (zeros.length < 256) {
   zeros += zeros;
-}
-// Returns a string "1" followed by decimal "0"s
+} // Returns a string "1" followed by decimal "0"s
+
+
 function getMultiplier(decimals) {
   if (typeof decimals !== "number") {
     try {
       decimals = _bignumber.BigNumber.from(decimals).toNumber();
     } catch (e) {}
   }
+
   if (typeof decimals === "number" && decimals >= 0 && decimals <= 256 && !(decimals % 1)) {
     return "1" + zeros.substring(0, decimals);
   }
+
   return logger.throwArgumentError("invalid decimal size", "decimals", decimals);
 }
+
 function formatFixed(value, decimals) {
   if (decimals == null) {
     decimals = 0;
   }
-  const multiplier = getMultiplier(decimals);
-  // Make sure wei is a big number (convert as necessary)
+
+  const multiplier = getMultiplier(decimals); // Make sure wei is a big number (convert as necessary)
+
   value = _bignumber.BigNumber.from(value);
   const negative = value.lt(Zero);
+
   if (negative) {
     value = value.mul(NegativeOne);
   }
+
   let fraction = value.mod(multiplier).toString();
+
   while (fraction.length < multiplier.length - 1) {
     fraction = "0" + fraction;
-  }
-  // Strip training 0
+  } // Strip training 0
+
+
   fraction = fraction.match(/^([0-9]*[1-9]|0)(0*)/)[1];
   const whole = value.div(multiplier).toString();
+
   if (multiplier.length === 1) {
     value = whole;
   } else {
     value = whole + "." + fraction;
   }
+
   if (negative) {
     value = "-" + value;
   }
+
   return value;
 }
+
 function parseFixed(value, decimals) {
   if (decimals == null) {
     decimals = 0;
   }
+
   const multiplier = getMultiplier(decimals);
+
   if (typeof value !== "string" || !value.match(/^-?[0-9.]+$/)) {
     logger.throwArgumentError("invalid decimal value", "value", value);
-  }
-  // Is it negative?
+  } // Is it negative?
+
+
   const negative = value.substring(0, 1) === "-";
+
   if (negative) {
     value = value.substring(1);
   }
+
   if (value === ".") {
     logger.throwArgumentError("missing value", "value", value);
-  }
-  // Split it into a whole and fractional part
+  } // Split it into a whole and fractional part
+
+
   const comps = value.split(".");
+
   if (comps.length > 2) {
     logger.throwArgumentError("too many decimal points", "value", value);
   }
+
   let whole = comps[0],
-    fraction = comps[1];
+      fraction = comps[1];
+
   if (!whole) {
     whole = "0";
   }
+
   if (!fraction) {
     fraction = "0";
-  }
-  // Trim trailing zeros
+  } // Trim trailing zeros
+
+
   while (fraction[fraction.length - 1] === "0") {
     fraction = fraction.substring(0, fraction.length - 1);
-  }
-  // Check the fraction doesn't exceed our decimals size
+  } // Check the fraction doesn't exceed our decimals size
+
+
   if (fraction.length > multiplier.length - 1) {
     throwFault("fractional component exceeds decimals", "underflow", "parseFixed");
-  }
-  // If decimals is 0, we have an empty string for fraction
+  } // If decimals is 0, we have an empty string for fraction
+
+
   if (fraction === "") {
     fraction = "0";
-  }
-  // Fully pad the string with zeros to get to wei
+  } // Fully pad the string with zeros to get to wei
+
+
   while (fraction.length < multiplier.length - 1) {
     fraction += "0";
   }
+
   const wholeValue = _bignumber.BigNumber.from(whole);
+
   const fractionValue = _bignumber.BigNumber.from(fraction);
+
   let wei = wholeValue.mul(multiplier).add(fractionValue);
+
   if (negative) {
     wei = wei.mul(NegativeOne);
   }
+
   return wei;
 }
+
 class FixedFormat {
   constructor(constructorGuard, signed, width, decimals) {
     if (constructorGuard !== _constructorGuard) {
@@ -5528,6 +5819,7 @@ class FixedFormat {
         operation: "new FixedFormat"
       });
     }
+
     this.signed = signed;
     this.width = width;
     this.decimals = decimals;
@@ -5535,26 +5827,31 @@ class FixedFormat {
     this._multiplier = getMultiplier(decimals);
     Object.freeze(this);
   }
+
   static from(value) {
     if (value instanceof FixedFormat) {
       return value;
     }
+
     if (typeof value === "number") {
       value = `fixed128x${value}`;
     }
+
     let signed = true;
     let width = 128;
     let decimals = 18;
+
     if (typeof value === "string") {
-      if (value === "fixed") {
-        // defaults...
+      if (value === "fixed") {// defaults...
       } else if (value === "ufixed") {
         signed = false;
       } else {
         const match = value.match(/^(u?)fixed([0-9]+)x([0-9]+)$/);
+
         if (!match) {
           logger.throwArgumentError("invalid fixed format", "format", value);
         }
+
         signed = match[1] !== "u";
         width = parseInt(match[2]);
         decimals = parseInt(match[3]);
@@ -5564,193 +5861,257 @@ class FixedFormat {
         if (value[key] == null) {
           return defaultValue;
         }
+
         if (typeof value[key] !== type) {
           logger.throwArgumentError("invalid fixed format (" + key + " not " + type + ")", "format." + key, value[key]);
         }
+
         return value[key];
       };
+
       signed = check("signed", "boolean", signed);
       width = check("width", "number", width);
       decimals = check("decimals", "number", decimals);
     }
+
     if (width % 8) {
       logger.throwArgumentError("invalid fixed format width (not byte aligned)", "format.width", width);
     }
+
     if (decimals > 80) {
       logger.throwArgumentError("invalid fixed format (decimals too large)", "format.decimals", decimals);
     }
+
     return new FixedFormat(_constructorGuard, signed, width, decimals);
   }
+
 }
+
 exports.FixedFormat = FixedFormat;
+
 class FixedNumber {
   constructor(constructorGuard, hex, value, format) {
     logger.checkNew(new.target, FixedNumber);
+
     if (constructorGuard !== _constructorGuard) {
       logger.throwError("cannot use FixedNumber constructor; use FixedNumber.from", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
         operation: "new FixedFormat"
       });
     }
+
     this.format = format;
     this._hex = hex;
     this._value = value;
     this._isFixedNumber = true;
     Object.freeze(this);
   }
+
   _checkFormat(other) {
     if (this.format.name !== other.format.name) {
       logger.throwArgumentError("incompatible format; use fixedNumber.toFormat", "other", other);
     }
   }
+
   addUnsafe(other) {
     this._checkFormat(other);
+
     const a = parseFixed(this._value, this.format.decimals);
     const b = parseFixed(other._value, other.format.decimals);
     return FixedNumber.fromValue(a.add(b), this.format.decimals, this.format);
   }
+
   subUnsafe(other) {
     this._checkFormat(other);
+
     const a = parseFixed(this._value, this.format.decimals);
     const b = parseFixed(other._value, other.format.decimals);
     return FixedNumber.fromValue(a.sub(b), this.format.decimals, this.format);
   }
+
   mulUnsafe(other) {
     this._checkFormat(other);
+
     const a = parseFixed(this._value, this.format.decimals);
     const b = parseFixed(other._value, other.format.decimals);
     return FixedNumber.fromValue(a.mul(b).div(this.format._multiplier), this.format.decimals, this.format);
   }
+
   divUnsafe(other) {
     this._checkFormat(other);
+
     const a = parseFixed(this._value, this.format.decimals);
     const b = parseFixed(other._value, other.format.decimals);
     return FixedNumber.fromValue(a.mul(this.format._multiplier).div(b), this.format.decimals, this.format);
   }
+
   floor() {
     const comps = this.toString().split(".");
+
     if (comps.length === 1) {
       comps.push("0");
     }
+
     let result = FixedNumber.from(comps[0], this.format);
     const hasFraction = !comps[1].match(/^(0*)$/);
+
     if (this.isNegative() && hasFraction) {
       result = result.subUnsafe(ONE.toFormat(result.format));
     }
+
     return result;
   }
+
   ceiling() {
     const comps = this.toString().split(".");
+
     if (comps.length === 1) {
       comps.push("0");
     }
+
     let result = FixedNumber.from(comps[0], this.format);
     const hasFraction = !comps[1].match(/^(0*)$/);
+
     if (!this.isNegative() && hasFraction) {
       result = result.addUnsafe(ONE.toFormat(result.format));
     }
+
     return result;
-  }
-  // @TODO: Support other rounding algorithms
+  } // @TODO: Support other rounding algorithms
+
+
   round(decimals) {
     if (decimals == null) {
       decimals = 0;
-    }
-    // If we are already in range, we're done
+    } // If we are already in range, we're done
+
+
     const comps = this.toString().split(".");
+
     if (comps.length === 1) {
       comps.push("0");
     }
+
     if (decimals < 0 || decimals > 80 || decimals % 1) {
       logger.throwArgumentError("invalid decimal count", "decimals", decimals);
     }
+
     if (comps[1].length <= decimals) {
       return this;
     }
+
     const factor = FixedNumber.from("1" + zeros.substring(0, decimals), this.format);
     const bump = BUMP.toFormat(this.format);
     return this.mulUnsafe(factor).addUnsafe(bump).floor().divUnsafe(factor);
   }
+
   isZero() {
     return this._value === "0.0" || this._value === "0";
   }
+
   isNegative() {
     return this._value[0] === "-";
   }
+
   toString() {
     return this._value;
   }
+
   toHexString(width) {
     if (width == null) {
       return this._hex;
     }
+
     if (width % 8) {
       logger.throwArgumentError("invalid byte width", "width", width);
     }
+
     const hex = _bignumber.BigNumber.from(this._hex).fromTwos(this.format.width).toTwos(width).toHexString();
+
     return (0, _bytes.hexZeroPad)(hex, width / 8);
   }
+
   toUnsafeFloat() {
     return parseFloat(this.toString());
   }
+
   toFormat(format) {
     return FixedNumber.fromString(this._value, format);
   }
+
   static fromValue(value, decimals, format) {
     // If decimals looks more like a format, and there is no format, shift the parameters
     if (format == null && decimals != null && !(0, _bignumber.isBigNumberish)(decimals)) {
       format = decimals;
       decimals = null;
     }
+
     if (decimals == null) {
       decimals = 0;
     }
+
     if (format == null) {
       format = "fixed";
     }
+
     return FixedNumber.fromString(formatFixed(value, decimals), FixedFormat.from(format));
   }
+
   static fromString(value, format) {
     if (format == null) {
       format = "fixed";
     }
+
     const fixedFormat = FixedFormat.from(format);
     const numeric = parseFixed(value, fixedFormat.decimals);
+
     if (!fixedFormat.signed && numeric.lt(Zero)) {
       throwFault("unsigned value cannot be negative", "overflow", "value", value);
     }
+
     let hex = null;
+
     if (fixedFormat.signed) {
       hex = numeric.toTwos(fixedFormat.width).toHexString();
     } else {
       hex = numeric.toHexString();
       hex = (0, _bytes.hexZeroPad)(hex, fixedFormat.width / 8);
     }
+
     const decimal = formatFixed(numeric, fixedFormat.decimals);
     return new FixedNumber(_constructorGuard, hex, decimal, fixedFormat);
   }
+
   static fromBytes(value, format) {
     if (format == null) {
       format = "fixed";
     }
+
     const fixedFormat = FixedFormat.from(format);
+
     if ((0, _bytes.arrayify)(value).length > fixedFormat.width / 8) {
       throw new Error("overflow");
     }
+
     let numeric = _bignumber.BigNumber.from(value);
+
     if (fixedFormat.signed) {
       numeric = numeric.fromTwos(fixedFormat.width);
     }
+
     const hex = numeric.toTwos((fixedFormat.signed ? 0 : 1) + fixedFormat.width).toHexString();
     const decimal = formatFixed(numeric, fixedFormat.decimals);
     return new FixedNumber(_constructorGuard, hex, decimal, fixedFormat);
   }
+
   static from(value, format) {
     if (typeof value === "string") {
       return FixedNumber.fromString(value, format);
     }
+
     if ((0, _bytes.isBytes)(value)) {
       return FixedNumber.fromBytes(value, format);
     }
+
     try {
       return FixedNumber.fromValue(value, 0, format);
     } catch (error) {
@@ -5759,12 +6120,16 @@ class FixedNumber {
         throw error;
       }
     }
+
     return logger.throwArgumentError("invalid FixedNumber value", "value", value);
   }
+
   static isFixedNumber(value) {
     return !!(value && value._isFixedNumber);
   }
+
 }
+
 exports.FixedNumber = FixedNumber;
 const ONE = FixedNumber.from(1);
 const BUMP = FixedNumber.from("0.5");
@@ -5816,7 +6181,9 @@ Object.defineProperty(exports, "parseFixed", {
     return _fixednumber.parseFixed;
   }
 });
+
 var _bignumber = require("./bignumber");
+
 var _fixednumber = require("./fixednumber");
 },{"./bignumber":"RA51","./fixednumber":"h7bg"}],"qIal":[function(require,module,exports) {
 "use strict";
@@ -5840,14 +6207,18 @@ exports.defineReadOnly = defineReadOnly;
 exports.getStatic = getStatic;
 exports.resolveProperties = resolveProperties;
 exports.shallowCopy = shallowCopy;
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -5856,6 +6227,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -5863,33 +6235,42 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 const logger = new _logger.Logger(_version.version);
+
 function defineReadOnly(object, name, value) {
   Object.defineProperty(object, name, {
     enumerable: true,
     value: value,
     writable: false
   });
-}
-// Crawl up the constructor chain to find a static method
+} // Crawl up the constructor chain to find a static method
+
+
 function getStatic(ctor, key) {
   for (let i = 0; i < 32; i++) {
     if (ctor[key]) {
       return ctor[key];
     }
+
     if (!ctor.prototype || typeof ctor.prototype !== "object") {
       break;
     }
+
     ctor = Object.getPrototypeOf(ctor.prototype).constructor;
   }
+
   return null;
 }
+
 function resolveProperties(object) {
   return __awaiter(this, void 0, void 0, function* () {
     const promises = Object.keys(object).map(key => {
@@ -5906,23 +6287,29 @@ function resolveProperties(object) {
     }, {});
   });
 }
+
 function checkProperties(object, properties) {
   if (!object || typeof object !== "object") {
     logger.throwArgumentError("invalid object", "object", object);
   }
+
   Object.keys(object).forEach(key => {
     if (!properties[key]) {
       logger.throwArgumentError("invalid object key - " + key, "transaction:" + key, object);
     }
   });
 }
+
 function shallowCopy(object) {
   const result = {};
+
   for (const key in object) {
     result[key] = object[key];
   }
+
   return result;
 }
+
 const opaque = {
   bigint: true,
   boolean: true,
@@ -5930,18 +6317,23 @@ const opaque = {
   number: true,
   string: true
 };
+
 function _isFrozen(object) {
   // Opaque objects are not mutable, so safe to copy by assignment
   if (object === undefined || object === null || opaque[typeof object]) {
     return true;
   }
+
   if (Array.isArray(object) || typeof object === "object") {
     if (!Object.isFrozen(object)) {
       return false;
     }
+
     const keys = Object.keys(object);
+
     for (let i = 0; i < keys.length; i++) {
       let value = null;
+
       try {
         value = object[keys[i]];
       } catch (error) {
@@ -5949,47 +6341,62 @@ function _isFrozen(object) {
         // designed to do so (e.g. Result) and is therefore "frozen"
         continue;
       }
+
       if (!_isFrozen(value)) {
         return false;
       }
     }
+
     return true;
   }
+
   return logger.throwArgumentError(`Cannot deepCopy ${typeof object}`, "object", object);
-}
-// Returns a new copy of object, such that no properties may be replaced.
+} // Returns a new copy of object, such that no properties may be replaced.
 // New properties may be added only to objects.
+
+
 function _deepCopy(object) {
   if (_isFrozen(object)) {
     return object;
-  }
-  // Arrays are mutable, so we need to create a copy
+  } // Arrays are mutable, so we need to create a copy
+
+
   if (Array.isArray(object)) {
     return Object.freeze(object.map(item => deepCopy(item)));
   }
+
   if (typeof object === "object") {
     const result = {};
+
     for (const key in object) {
       const value = object[key];
+
       if (value === undefined) {
         continue;
       }
+
       defineReadOnly(result, key, deepCopy(value));
     }
+
     return result;
   }
+
   return logger.throwArgumentError(`Cannot deepCopy ${typeof object}`, "object", object);
 }
+
 function deepCopy(object) {
   return _deepCopy(object);
 }
+
 class Description {
   constructor(info) {
     for (const key in info) {
       this[key] = deepCopy(info[key]);
     }
   }
+
 }
+
 exports.Description = Description;
 },{"@ethersproject/logger":"kMNH","./_version":"qIal"}],"KSRV":[function(require,module,exports) {
 "use strict";
@@ -6007,10 +6414,15 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.ParamType = exports.FunctionFragment = exports.Fragment = exports.FormatTypes = exports.EventFragment = exports.ErrorFragment = exports.ConstructorFragment = void 0;
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _properties = require("@ethersproject/properties");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 const logger = new _logger.Logger(_version.version);
 ;
 const _constructorGuard = {};
@@ -6023,6 +6435,7 @@ let ModifiersNest = {
   calldata: true,
   memory: true
 };
+
 function checkModifier(type, name) {
   if (type === "bytes" || type === "string") {
     if (ModifiersBytes[name]) {
@@ -6037,18 +6450,24 @@ function checkModifier(type, name) {
       return true;
     }
   }
+
   if (ModifiersBytes[name] || name === "payable") {
     logger.throwArgumentError("invalid modifier", "name", name);
   }
+
   return false;
-}
-// @TODO: Make sure that children of an indexed tuple are marked with a null indexed
+} // @TODO: Make sure that children of an indexed tuple are marked with a null indexed
+
+
 function parseParamType(param, allowIndexed) {
   let originalParam = param;
+
   function throwError(i) {
     logger.throwArgumentError(`unexpected character at position ${i}`, "param", param);
   }
+
   param = param.replace(/\s/g, " ");
+
   function newNode(parent) {
     let node = {
       type: "",
@@ -6058,11 +6477,14 @@ function parseParamType(param, allowIndexed) {
         allowType: true
       }
     };
+
     if (allowIndexed) {
       node.indexed = false;
     }
+
     return node;
   }
+
   let parent = {
     type: "",
     name: "",
@@ -6071,8 +6493,10 @@ function parseParamType(param, allowIndexed) {
     }
   };
   let node = parent;
+
   for (let i = 0; i < param.length; i++) {
     let c = param[i];
+
     switch (c) {
       case "(":
         if (node.state.allowType && node.type === "") {
@@ -6080,54 +6504,68 @@ function parseParamType(param, allowIndexed) {
         } else if (!node.state.allowParams) {
           throwError(i);
         }
+
         node.state.allowType = false;
         node.type = verifyType(node.type);
         node.components = [newNode(node)];
         node = node.components[0];
         break;
+
       case ")":
         delete node.state;
+
         if (node.name === "indexed") {
           if (!allowIndexed) {
             throwError(i);
           }
+
           node.indexed = true;
           node.name = "";
         }
+
         if (checkModifier(node.type, node.name)) {
           node.name = "";
         }
+
         node.type = verifyType(node.type);
         let child = node;
         node = node.parent;
+
         if (!node) {
           throwError(i);
         }
+
         delete child.parent;
         node.state.allowParams = false;
         node.state.allowName = true;
         node.state.allowArray = true;
         break;
+
       case ",":
         delete node.state;
+
         if (node.name === "indexed") {
           if (!allowIndexed) {
             throwError(i);
           }
+
           node.indexed = true;
           node.name = "";
         }
+
         if (checkModifier(node.type, node.name)) {
           node.name = "";
         }
+
         node.type = verifyType(node.type);
-        let sibling = newNode(node.parent);
-        //{ type: "", name: "", parent: node.parent, state: { allowType: true } };
+        let sibling = newNode(node.parent); //{ type: "", name: "", parent: node.parent, state: { allowType: true } };
+
         node.parent.components.push(sibling);
         delete node.parent;
         node = sibling;
         break;
       // Hit a space...
+
       case " ":
         // If reading type, the type is done and may read a param or name
         if (node.state.allowType) {
@@ -6137,17 +6575,20 @@ function parseParamType(param, allowIndexed) {
             node.state.allowName = true;
             node.state.allowParams = true;
           }
-        }
-        // If reading name, the name is done
+        } // If reading name, the name is done
+
+
         if (node.state.allowName) {
           if (node.name !== "") {
             if (node.name === "indexed") {
               if (!allowIndexed) {
                 throwError(i);
               }
+
               if (node.indexed) {
                 throwError(i);
               }
+
               node.indexed = true;
               node.name = "";
             } else if (checkModifier(node.type, node.name)) {
@@ -6157,25 +6598,31 @@ function parseParamType(param, allowIndexed) {
             }
           }
         }
+
         break;
+
       case "[":
         if (!node.state.allowArray) {
           throwError(i);
         }
+
         node.type += c;
         node.state.allowArray = false;
         node.state.allowName = false;
         node.state.readArray = true;
         break;
+
       case "]":
         if (!node.state.readArray) {
           throwError(i);
         }
+
         node.type += c;
         node.state.readArray = false;
         node.state.allowArray = true;
         node.state.allowName = true;
         break;
+
       default:
         if (node.state.allowType) {
           node.type += c;
@@ -6189,32 +6636,41 @@ function parseParamType(param, allowIndexed) {
         } else {
           throwError(i);
         }
+
     }
   }
+
   if (node.parent) {
     logger.throwArgumentError("unexpected eof", "param", param);
   }
+
   delete parent.state;
+
   if (node.name === "indexed") {
     if (!allowIndexed) {
       throwError(originalParam.length - 7);
     }
+
     if (node.indexed) {
       throwError(originalParam.length - 7);
     }
+
     node.indexed = true;
     node.name = "";
   } else if (checkModifier(node.type, node.name)) {
     node.name = "";
   }
+
   parent.type = verifyType(parent.type);
   return parent;
 }
+
 function populate(object, params) {
   for (let key in params) {
     (0, _properties.defineReadOnly)(object, key, params[key]);
   }
 }
+
 const FormatTypes = Object.freeze({
   // Bare formatting, as is needed for computing a sighash of an event or function
   sighash: "sighash",
@@ -6227,6 +6683,7 @@ const FormatTypes = Object.freeze({
 });
 exports.FormatTypes = FormatTypes;
 const paramTypeArray = new RegExp(/^(.*)\[([0-9]*)\]$/);
+
 class ParamType {
   constructor(constructorGuard, params) {
     if (constructorGuard !== _constructorGuard) {
@@ -6234,8 +6691,10 @@ class ParamType {
         operation: "new ParamType()"
       });
     }
+
     populate(this, params);
     let match = this.type.match(paramTypeArray);
+
     if (match) {
       populate(this, {
         arrayLength: parseInt(match[2] || "-1"),
@@ -6252,35 +6711,43 @@ class ParamType {
         baseType: this.components != null ? "tuple" : this.type
       });
     }
+
     this._isParamType = true;
     Object.freeze(this);
-  }
-  // Format the parameter fragment
+  } // Format the parameter fragment
   //   - sighash: "(uint256,address)"
   //   - minimal: "tuple(uint256,address) indexed"
   //   - full:    "tuple(uint256 foo, address bar) indexed baz"
+
+
   format(format) {
     if (!format) {
       format = FormatTypes.sighash;
     }
+
     if (!FormatTypes[format]) {
       logger.throwArgumentError("invalid format type", "format", format);
     }
+
     if (format === FormatTypes.json) {
       let result = {
         type: this.baseType === "tuple" ? "tuple" : this.type,
         name: this.name || undefined
       };
+
       if (typeof this.indexed === "boolean") {
         result.indexed = this.indexed;
       }
+
       if (this.components) {
         result.components = this.components.map(comp => JSON.parse(comp.format(format)));
       }
+
       return JSON.stringify(result);
     }
-    let result = "";
-    // Array
+
+    let result = ""; // Array
+
     if (this.baseType === "array") {
       result += this.arrayChildren.format(format);
       result += "[" + (this.arrayLength < 0 ? "" : String(this.arrayLength)) + "]";
@@ -6289,31 +6756,39 @@ class ParamType {
         if (format !== FormatTypes.sighash) {
           result += this.type;
         }
+
         result += "(" + this.components.map(comp => comp.format(format)).join(format === FormatTypes.full ? ", " : ",") + ")";
       } else {
         result += this.type;
       }
     }
+
     if (format !== FormatTypes.sighash) {
       if (this.indexed === true) {
         result += " indexed";
       }
+
       if (format === FormatTypes.full && this.name) {
         result += " " + this.name;
       }
     }
+
     return result;
   }
+
   static from(value, allowIndexed) {
     if (typeof value === "string") {
       return ParamType.fromString(value, allowIndexed);
     }
+
     return ParamType.fromObject(value);
   }
+
   static fromObject(value) {
     if (ParamType.isParamType(value)) {
       return value;
     }
+
     return new ParamType(_constructorGuard, {
       name: value.name || null,
       type: verifyType(value.type),
@@ -6321,6 +6796,7 @@ class ParamType {
       components: value.components ? value.components.map(ParamType.fromObject) : null
     });
   }
+
   static fromString(value, allowIndexed) {
     function ParamTypify(node) {
       return ParamType.fromObject({
@@ -6330,17 +6806,23 @@ class ParamType {
         components: node.components
       });
     }
+
     return ParamTypify(parseParamType(value, !!allowIndexed));
   }
+
   static isParamType(value) {
     return !!(value != null && value._isParamType);
   }
+
 }
+
 exports.ParamType = ParamType;
 ;
+
 function parseParams(value, allowIndex) {
   return splitNesting(value).map(param => ParamType.fromString(param, allowIndex));
 }
+
 class Fragment {
   constructor(constructorGuard, params) {
     if (constructorGuard !== _constructorGuard) {
@@ -6348,44 +6830,57 @@ class Fragment {
         operation: "new Fragment()"
       });
     }
+
     populate(this, params);
     this._isFragment = true;
     Object.freeze(this);
   }
+
   static from(value) {
     if (Fragment.isFragment(value)) {
       return value;
     }
+
     if (typeof value === "string") {
       return Fragment.fromString(value);
     }
+
     return Fragment.fromObject(value);
   }
+
   static fromObject(value) {
     if (Fragment.isFragment(value)) {
       return value;
     }
+
     switch (value.type) {
       case "function":
         return FunctionFragment.fromObject(value);
+
       case "event":
         return EventFragment.fromObject(value);
+
       case "constructor":
         return ConstructorFragment.fromObject(value);
+
       case "error":
         return ErrorFragment.fromObject(value);
+
       case "fallback":
       case "receive":
         // @TODO: Something? Maybe return a FunctionFragment? A custom DefaultFunctionFragment?
         return null;
     }
+
     return logger.throwArgumentError("invalid fragment object", "value", value);
   }
+
   static fromString(value) {
     // Make sure the "returns" is surrounded by a space and all whitespace is exactly one space
     value = value.replace(/\s/g, " ");
     value = value.replace(/\(/g, " (").replace(/\)/g, ") ").replace(/\s+/g, " ");
     value = value.trim();
+
     if (value.split(" ")[0] === "event") {
       return EventFragment.fromString(value.substring(5).trim());
     } else if (value.split(" ")[0] === "function") {
@@ -6395,21 +6890,28 @@ class Fragment {
     } else if (value.split(" ")[0] === "error") {
       return ErrorFragment.fromString(value.substring(5).trim());
     }
+
     return logger.throwArgumentError("unsupported fragment", "value", value);
   }
+
   static isFragment(value) {
     return !!(value && value._isFragment);
   }
+
 }
+
 exports.Fragment = Fragment;
+
 class EventFragment extends Fragment {
   format(format) {
     if (!format) {
       format = FormatTypes.sighash;
     }
+
     if (!FormatTypes[format]) {
       logger.throwArgumentError("invalid format type", "format", format);
     }
+
     if (format === FormatTypes.json) {
       return JSON.stringify({
         type: "event",
@@ -6418,31 +6920,41 @@ class EventFragment extends Fragment {
         inputs: this.inputs.map(input => JSON.parse(input.format(format)))
       });
     }
+
     let result = "";
+
     if (format !== FormatTypes.sighash) {
       result += "event ";
     }
+
     result += this.name + "(" + this.inputs.map(input => input.format(format)).join(format === FormatTypes.full ? ", " : ",") + ") ";
+
     if (format !== FormatTypes.sighash) {
       if (this.anonymous) {
         result += "anonymous ";
       }
     }
+
     return result.trim();
   }
+
   static from(value) {
     if (typeof value === "string") {
       return EventFragment.fromString(value);
     }
+
     return EventFragment.fromObject(value);
   }
+
   static fromObject(value) {
     if (EventFragment.isEventFragment(value)) {
       return value;
     }
+
     if (value.type !== "event") {
       logger.throwArgumentError("invalid event object", "value", value);
     }
+
     const params = {
       name: verifyIdentifier(value.name),
       anonymous: value.anonymous,
@@ -6451,19 +6963,24 @@ class EventFragment extends Fragment {
     };
     return new EventFragment(_constructorGuard, params);
   }
+
   static fromString(value) {
     let match = value.match(regexParen);
+
     if (!match) {
       logger.throwArgumentError("invalid event string", "value", value);
     }
+
     let anonymous = false;
     match[3].split(" ").forEach(modifier => {
       switch (modifier.trim()) {
         case "anonymous":
           anonymous = true;
           break;
+
         case "":
           break;
+
         default:
           logger.warn("unknown modifier: " + modifier);
       }
@@ -6475,26 +6992,35 @@ class EventFragment extends Fragment {
       type: "event"
     });
   }
+
   static isEventFragment(value) {
     return value && value._isFragment && value.type === "event";
   }
+
 }
+
 exports.EventFragment = EventFragment;
+
 function parseGas(value, params) {
   params.gas = null;
   let comps = value.split("@");
+
   if (comps.length !== 1) {
     if (comps.length > 2) {
       logger.throwArgumentError("invalid human-readable ABI signature", "value", value);
     }
+
     if (!comps[1].match(/^[0-9]+$/)) {
       logger.throwArgumentError("invalid human-readable ABI signature gas", "value", value);
     }
+
     params.gas = _bignumber.BigNumber.from(comps[1]);
     return comps[0];
   }
+
   return value;
 }
+
 function parseModifiers(value, params) {
   params.constant = false;
   params.payable = false;
@@ -6504,65 +7030,79 @@ function parseModifiers(value, params) {
       case "constant":
         params.constant = true;
         break;
+
       case "payable":
         params.payable = true;
         params.stateMutability = "payable";
         break;
+
       case "nonpayable":
         params.payable = false;
         params.stateMutability = "nonpayable";
         break;
+
       case "pure":
         params.constant = true;
         params.stateMutability = "pure";
         break;
+
       case "view":
         params.constant = true;
         params.stateMutability = "view";
         break;
+
       case "external":
       case "public":
       case "":
         break;
+
       default:
         console.log("unknown modifier: " + modifier);
     }
   });
 }
+
 function verifyState(value) {
   let result = {
     constant: false,
     payable: true,
     stateMutability: "payable"
   };
+
   if (value.stateMutability != null) {
-    result.stateMutability = value.stateMutability;
-    // Set (and check things are consistent) the constant property
+    result.stateMutability = value.stateMutability; // Set (and check things are consistent) the constant property
+
     result.constant = result.stateMutability === "view" || result.stateMutability === "pure";
+
     if (value.constant != null) {
       if (!!value.constant !== result.constant) {
         logger.throwArgumentError("cannot have constant function with mutability " + result.stateMutability, "value", value);
       }
-    }
-    // Set (and check things are consistent) the payable property
+    } // Set (and check things are consistent) the payable property
+
+
     result.payable = result.stateMutability === "payable";
+
     if (value.payable != null) {
       if (!!value.payable !== result.payable) {
         logger.throwArgumentError("cannot have payable function with mutability " + result.stateMutability, "value", value);
       }
     }
   } else if (value.payable != null) {
-    result.payable = !!value.payable;
-    // If payable we can assume non-constant; otherwise we can't assume
+    result.payable = !!value.payable; // If payable we can assume non-constant; otherwise we can't assume
+
     if (value.constant == null && !result.payable && value.type !== "constructor") {
       logger.throwArgumentError("unable to determine stateMutability", "value", value);
     }
+
     result.constant = !!value.constant;
+
     if (result.constant) {
       result.stateMutability = "view";
     } else {
       result.stateMutability = result.payable ? "payable" : "nonpayable";
     }
+
     if (result.payable && result.constant) {
       logger.throwArgumentError("cannot have constant payable function", "value", value);
     }
@@ -6573,16 +7113,20 @@ function verifyState(value) {
   } else if (value.type !== "constructor") {
     logger.throwArgumentError("unable to determine stateMutability", "value", value);
   }
+
   return result;
 }
+
 class ConstructorFragment extends Fragment {
   format(format) {
     if (!format) {
       format = FormatTypes.sighash;
     }
+
     if (!FormatTypes[format]) {
       logger.throwArgumentError("invalid format type", "format", format);
     }
+
     if (format === FormatTypes.json) {
       return JSON.stringify({
         type: "constructor",
@@ -6592,34 +7136,45 @@ class ConstructorFragment extends Fragment {
         inputs: this.inputs.map(input => JSON.parse(input.format(format)))
       });
     }
+
     if (format === FormatTypes.sighash) {
       logger.throwError("cannot format a constructor for sighash", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
         operation: "format(sighash)"
       });
     }
+
     let result = "constructor(" + this.inputs.map(input => input.format(format)).join(format === FormatTypes.full ? ", " : ",") + ") ";
+
     if (this.stateMutability && this.stateMutability !== "nonpayable") {
       result += this.stateMutability + " ";
     }
+
     return result.trim();
   }
+
   static from(value) {
     if (typeof value === "string") {
       return ConstructorFragment.fromString(value);
     }
+
     return ConstructorFragment.fromObject(value);
   }
+
   static fromObject(value) {
     if (ConstructorFragment.isConstructorFragment(value)) {
       return value;
     }
+
     if (value.type !== "constructor") {
       logger.throwArgumentError("invalid constructor object", "value", value);
     }
+
     let state = verifyState(value);
+
     if (state.constant) {
       logger.throwArgumentError("constructor cannot be constant", "value", value);
     }
+
     const params = {
       name: null,
       type: value.type,
@@ -6630,32 +7185,41 @@ class ConstructorFragment extends Fragment {
     };
     return new ConstructorFragment(_constructorGuard, params);
   }
+
   static fromString(value) {
     let params = {
       type: "constructor"
     };
     value = parseGas(value, params);
     let parens = value.match(regexParen);
+
     if (!parens || parens[1].trim() !== "constructor") {
       logger.throwArgumentError("invalid constructor string", "value", value);
     }
+
     params.inputs = parseParams(parens[2].trim(), false);
     parseModifiers(parens[3].trim(), params);
     return ConstructorFragment.fromObject(params);
   }
+
   static isConstructorFragment(value) {
     return value && value._isFragment && value.type === "constructor";
   }
+
 }
+
 exports.ConstructorFragment = ConstructorFragment;
+
 class FunctionFragment extends ConstructorFragment {
   format(format) {
     if (!format) {
       format = FormatTypes.sighash;
     }
+
     if (!FormatTypes[format]) {
       logger.throwArgumentError("invalid format type", "format", format);
     }
+
     if (format === FormatTypes.json) {
       return JSON.stringify({
         type: "function",
@@ -6668,11 +7232,15 @@ class FunctionFragment extends ConstructorFragment {
         outputs: this.outputs.map(output => JSON.parse(output.format(format)))
       });
     }
+
     let result = "";
+
     if (format !== FormatTypes.sighash) {
       result += "function ";
     }
+
     result += this.name + "(" + this.inputs.map(input => input.format(format)).join(format === FormatTypes.full ? ", " : ",") + ") ";
+
     if (format !== FormatTypes.sighash) {
       if (this.stateMutability) {
         if (this.stateMutability !== "nonpayable") {
@@ -6681,28 +7249,36 @@ class FunctionFragment extends ConstructorFragment {
       } else if (this.constant) {
         result += "view ";
       }
+
       if (this.outputs && this.outputs.length) {
         result += "returns (" + this.outputs.map(output => output.format(format)).join(", ") + ") ";
       }
+
       if (this.gas != null) {
         result += "@" + this.gas.toString() + " ";
       }
     }
+
     return result.trim();
   }
+
   static from(value) {
     if (typeof value === "string") {
       return FunctionFragment.fromString(value);
     }
+
     return FunctionFragment.fromObject(value);
   }
+
   static fromObject(value) {
     if (FunctionFragment.isFunctionFragment(value)) {
       return value;
     }
+
     if (value.type !== "function") {
       logger.throwArgumentError("invalid function object", "value", value);
     }
+
     let state = verifyState(value);
     const params = {
       type: value.type,
@@ -6716,59 +7292,78 @@ class FunctionFragment extends ConstructorFragment {
     };
     return new FunctionFragment(_constructorGuard, params);
   }
+
   static fromString(value) {
     let params = {
       type: "function"
     };
     value = parseGas(value, params);
     let comps = value.split(" returns ");
+
     if (comps.length > 2) {
       logger.throwArgumentError("invalid function string", "value", value);
     }
+
     let parens = comps[0].match(regexParen);
+
     if (!parens) {
       logger.throwArgumentError("invalid function signature", "value", value);
     }
+
     params.name = parens[1].trim();
+
     if (params.name) {
       verifyIdentifier(params.name);
     }
+
     params.inputs = parseParams(parens[2], false);
-    parseModifiers(parens[3].trim(), params);
-    // We have outputs
+    parseModifiers(parens[3].trim(), params); // We have outputs
+
     if (comps.length > 1) {
       let returns = comps[1].match(regexParen);
+
       if (returns[1].trim() != "" || returns[3].trim() != "") {
         logger.throwArgumentError("unexpected tokens", "value", value);
       }
+
       params.outputs = parseParams(returns[2], false);
     } else {
       params.outputs = [];
     }
+
     return FunctionFragment.fromObject(params);
   }
+
   static isFunctionFragment(value) {
     return value && value._isFragment && value.type === "function";
   }
-}
-//export class StructFragment extends Fragment {
+
+} //export class StructFragment extends Fragment {
 //}
+
+
 exports.FunctionFragment = FunctionFragment;
+
 function checkForbidden(fragment) {
   const sig = fragment.format();
+
   if (sig === "Error(string)" || sig === "Panic(uint256)") {
     logger.throwArgumentError(`cannot specify user defined ${sig} error`, "fragment", fragment);
   }
+
   return fragment;
 }
+
 class ErrorFragment extends Fragment {
   format(format) {
     if (!format) {
       format = FormatTypes.sighash;
     }
+
     if (!FormatTypes[format]) {
       logger.throwArgumentError("invalid format type", "format", format);
     }
+
     if (format === FormatTypes.json) {
       return JSON.stringify({
         type: "error",
@@ -6776,26 +7371,34 @@ class ErrorFragment extends Fragment {
         inputs: this.inputs.map(input => JSON.parse(input.format(format)))
       });
     }
+
     let result = "";
+
     if (format !== FormatTypes.sighash) {
       result += "error ";
     }
+
     result += this.name + "(" + this.inputs.map(input => input.format(format)).join(format === FormatTypes.full ? ", " : ",") + ") ";
     return result.trim();
   }
+
   static from(value) {
     if (typeof value === "string") {
       return ErrorFragment.fromString(value);
     }
+
     return ErrorFragment.fromObject(value);
   }
+
   static fromObject(value) {
     if (ErrorFragment.isErrorFragment(value)) {
       return value;
     }
+
     if (value.type !== "error") {
       logger.throwArgumentError("invalid error object", "value", value);
     }
+
     const params = {
       type: value.type,
       name: verifyIdentifier(value.name),
@@ -6803,70 +7406,91 @@ class ErrorFragment extends Fragment {
     };
     return checkForbidden(new ErrorFragment(_constructorGuard, params));
   }
+
   static fromString(value) {
     let params = {
       type: "error"
     };
     let parens = value.match(regexParen);
+
     if (!parens) {
       logger.throwArgumentError("invalid error signature", "value", value);
     }
+
     params.name = parens[1].trim();
+
     if (params.name) {
       verifyIdentifier(params.name);
     }
+
     params.inputs = parseParams(parens[2], false);
     return checkForbidden(ErrorFragment.fromObject(params));
   }
+
   static isErrorFragment(value) {
     return value && value._isFragment && value.type === "error";
   }
+
 }
+
 exports.ErrorFragment = ErrorFragment;
+
 function verifyType(type) {
   // These need to be transformed to their full description
   if (type.match(/^uint($|[^1-9])/)) {
     type = "uint256" + type.substring(4);
   } else if (type.match(/^int($|[^1-9])/)) {
     type = "int256" + type.substring(3);
-  }
-  // @TODO: more verification
+  } // @TODO: more verification
+
+
   return type;
-}
-// See: https://github.com/ethereum/solidity/blob/1f8f1a3db93a548d0555e3e14cfc55a10e25b60e/docs/grammar/SolidityLexer.g4#L234
+} // See: https://github.com/ethereum/solidity/blob/1f8f1a3db93a548d0555e3e14cfc55a10e25b60e/docs/grammar/SolidityLexer.g4#L234
+
+
 const regexIdentifier = new RegExp("^[a-zA-Z$_][a-zA-Z0-9$_]*$");
+
 function verifyIdentifier(value) {
   if (!value || !value.match(regexIdentifier)) {
     logger.throwArgumentError(`invalid identifier "${value}"`, "value", value);
   }
+
   return value;
 }
+
 const regexParen = new RegExp("^([^)(]*)\\((.*)\\)([^)(]*)$");
+
 function splitNesting(value) {
   value = value.trim();
   let result = [];
   let accum = "";
   let depth = 0;
+
   for (let offset = 0; offset < value.length; offset++) {
     let c = value[offset];
+
     if (c === "," && depth === 0) {
       result.push(accum);
       accum = "";
     } else {
       accum += c;
+
       if (c === "(") {
         depth++;
       } else if (c === ")") {
         depth--;
+
         if (depth === -1) {
           logger.throwArgumentError("unbalanced parenthesis", "value", value);
         }
       }
     }
   }
+
   if (accum) {
     result.push(accum);
   }
+
   return result;
 }
 },{"@ethersproject/bignumber":"efJK","@ethersproject/properties":"JuuX","@ethersproject/logger":"kMNH","./_version":"KSRV"}],"T2f8":[function(require,module,exports) {
@@ -6877,22 +7501,32 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.Writer = exports.Reader = exports.Coder = void 0;
 exports.checkResultErrors = checkResultErrors;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _properties = require("@ethersproject/properties");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("../_version");
+
 const logger = new _logger.Logger(_version.version);
+
 function checkResultErrors(result) {
   // Find the first error (if any)
   const errors = [];
+
   const checkErrors = function (path, object) {
     if (!Array.isArray(object)) {
       return;
     }
+
     for (let key in object) {
       const childPath = path.slice();
       childPath.push(key);
+
       try {
         checkErrors(childPath, object[key]);
       } catch (error) {
@@ -6903,9 +7537,11 @@ function checkResultErrors(result) {
       }
     }
   };
+
   checkErrors([], result);
   return errors;
 }
+
 class Coder {
   constructor(name, type, localName, dynamic) {
     // @TODO: defineReadOnly these
@@ -6914,11 +7550,15 @@ class Coder {
     this.localName = localName;
     this.dynamic = dynamic;
   }
+
   _throwError(message, value) {
     logger.throwArgumentError(message, this.localName, value);
   }
+
 }
+
 exports.Coder = Coder;
+
 class Writer {
   constructor(wordSize) {
     (0, _properties.defineReadOnly)(this, "wordSize", wordSize || 32);
@@ -6926,56 +7566,75 @@ class Writer {
     this._dataLength = 0;
     this._padding = new Uint8Array(wordSize);
   }
+
   get data() {
     return (0, _bytes.hexConcat)(this._data);
   }
+
   get length() {
     return this._dataLength;
   }
+
   _writeData(data) {
     this._data.push(data);
+
     this._dataLength += data.length;
     return data.length;
   }
+
   appendWriter(writer) {
     return this._writeData((0, _bytes.concat)(writer._data));
-  }
-  // Arrayish items; padded on the right to wordSize
+  } // Arrayish items; padded on the right to wordSize
+
+
   writeBytes(value) {
     let bytes = (0, _bytes.arrayify)(value);
     const paddingOffset = bytes.length % this.wordSize;
+
     if (paddingOffset) {
       bytes = (0, _bytes.concat)([bytes, this._padding.slice(paddingOffset)]);
     }
+
     return this._writeData(bytes);
   }
+
   _getValue(value) {
     let bytes = (0, _bytes.arrayify)(_bignumber.BigNumber.from(value));
+
     if (bytes.length > this.wordSize) {
       logger.throwError("value out-of-bounds", _logger.Logger.errors.BUFFER_OVERRUN, {
         length: this.wordSize,
         offset: bytes.length
       });
     }
+
     if (bytes.length % this.wordSize) {
       bytes = (0, _bytes.concat)([this._padding.slice(bytes.length % this.wordSize), bytes]);
     }
+
     return bytes;
-  }
-  // BigNumberish items; padded on the left to wordSize
+  } // BigNumberish items; padded on the left to wordSize
+
+
   writeValue(value) {
     return this._writeData(this._getValue(value));
   }
+
   writeUpdatableValue() {
     const offset = this._data.length;
+
     this._data.push(this._padding);
+
     this._dataLength += this.wordSize;
     return value => {
       this._data[offset] = this._getValue(value);
     };
   }
+
 }
+
 exports.Writer = Writer;
+
 class Reader {
   constructor(data, wordSize, coerceFunc, allowLoose) {
     (0, _properties.defineReadOnly)(this, "_data", (0, _bytes.arrayify)(data));
@@ -6984,28 +7643,37 @@ class Reader {
     (0, _properties.defineReadOnly)(this, "allowLoose", allowLoose);
     this._offset = 0;
   }
+
   get data() {
     return (0, _bytes.hexlify)(this._data);
   }
+
   get consumed() {
     return this._offset;
-  }
-  // The default Coerce function
+  } // The default Coerce function
+
+
   static coerce(name, value) {
     let match = name.match("^u?int([0-9]+)$");
+
     if (match && parseInt(match[1]) <= 48) {
       value = value.toNumber();
     }
+
     return value;
   }
+
   coerce(name, value) {
     if (this._coerceFunc) {
       return this._coerceFunc(name, value);
     }
+
     return Reader.coerce(name, value);
   }
+
   _peekBytes(offset, length, loose) {
     let alignedLength = Math.ceil(length / this.wordSize) * this.wordSize;
+
     if (this._offset + alignedLength > this._data.length) {
       if (this.allowLoose && loose && this._offset + length <= this._data.length) {
         alignedLength = length;
@@ -7016,21 +7684,28 @@ class Reader {
         });
       }
     }
+
     return this._data.slice(this._offset, this._offset + alignedLength);
   }
+
   subReader(offset) {
     return new Reader(this._data.slice(this._offset + offset), this.wordSize, this._coerceFunc, this.allowLoose);
   }
+
   readBytes(length, loose) {
     let bytes = this._peekBytes(0, length, !!loose);
-    this._offset += bytes.length;
-    // @TODO: Make sure the length..end bytes are all 0?
+
+    this._offset += bytes.length; // @TODO: Make sure the length..end bytes are all 0?
+
     return bytes.slice(0, length);
   }
+
   readValue() {
     return _bignumber.BigNumber.from(this.readBytes(this.wordSize));
   }
+
 }
+
 exports.Reader = Reader;
 },{"@ethersproject/bytes":"aqkS","@ethersproject/bignumber":"efJK","@ethersproject/properties":"JuuX","@ethersproject/logger":"kMNH","../_version":"KSRV"}],"XvU4":[function(require,module,exports) {
 /**
@@ -7697,9 +8372,13 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.keccak256 = keccak256;
+
 var _jsSha = _interopRequireDefault(require("js-sha3"));
+
 var _bytes = require("@ethersproject/bytes");
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 function keccak256(data) {
   return '0x' + _jsSha.default.keccak_256((0, _bytes.arrayify)(data));
 }
@@ -7713,110 +8392,144 @@ exports.version = void 0;
 const version = "rlp/5.5.0";
 exports.version = version;
 },{}],"oUFp":[function(require,module,exports) {
-"use strict";
+"use strict"; //See: https://github.com/ethereum/wiki/wiki/RLP
 
-//See: https://github.com/ethereum/wiki/wiki/RLP
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.decode = decode;
 exports.encode = encode;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 const logger = new _logger.Logger(_version.version);
+
 function arrayifyInteger(value) {
   const result = [];
+
   while (value) {
     result.unshift(value & 0xff);
     value >>= 8;
   }
+
   return result;
 }
+
 function unarrayifyInteger(data, offset, length) {
   let result = 0;
+
   for (let i = 0; i < length; i++) {
     result = result * 256 + data[offset + i];
   }
+
   return result;
 }
+
 function _encode(object) {
   if (Array.isArray(object)) {
     let payload = [];
     object.forEach(function (child) {
       payload = payload.concat(_encode(child));
     });
+
     if (payload.length <= 55) {
       payload.unshift(0xc0 + payload.length);
       return payload;
     }
+
     const length = arrayifyInteger(payload.length);
     length.unshift(0xf7 + length.length);
     return length.concat(payload);
   }
+
   if (!(0, _bytes.isBytesLike)(object)) {
     logger.throwArgumentError("RLP object must be BytesLike", "object", object);
   }
+
   const data = Array.prototype.slice.call((0, _bytes.arrayify)(object));
+
   if (data.length === 1 && data[0] <= 0x7f) {
     return data;
   } else if (data.length <= 55) {
     data.unshift(0x80 + data.length);
     return data;
   }
+
   const length = arrayifyInteger(data.length);
   length.unshift(0xb7 + length.length);
   return length.concat(data);
 }
+
 function encode(object) {
   return (0, _bytes.hexlify)(_encode(object));
 }
+
 function _decodeChildren(data, offset, childOffset, length) {
   const result = [];
+
   while (childOffset < offset + 1 + length) {
     const decoded = _decode(data, childOffset);
+
     result.push(decoded.result);
     childOffset += decoded.consumed;
+
     if (childOffset > offset + 1 + length) {
       logger.throwError("child data too short", _logger.Logger.errors.BUFFER_OVERRUN, {});
     }
   }
+
   return {
     consumed: 1 + length,
     result: result
   };
-}
-// returns { consumed: number, result: Object }
+} // returns { consumed: number, result: Object }
+
+
 function _decode(data, offset) {
   if (data.length === 0) {
     logger.throwError("data too short", _logger.Logger.errors.BUFFER_OVERRUN, {});
-  }
-  // Array with extra length prefix
+  } // Array with extra length prefix
+
+
   if (data[offset] >= 0xf8) {
     const lengthLength = data[offset] - 0xf7;
+
     if (offset + 1 + lengthLength > data.length) {
       logger.throwError("data short segment too short", _logger.Logger.errors.BUFFER_OVERRUN, {});
     }
+
     const length = unarrayifyInteger(data, offset + 1, lengthLength);
+
     if (offset + 1 + lengthLength + length > data.length) {
       logger.throwError("data long segment too short", _logger.Logger.errors.BUFFER_OVERRUN, {});
     }
+
     return _decodeChildren(data, offset, offset + 1 + lengthLength, lengthLength + length);
   } else if (data[offset] >= 0xc0) {
     const length = data[offset] - 0xc0;
+
     if (offset + 1 + length > data.length) {
       logger.throwError("data array too short", _logger.Logger.errors.BUFFER_OVERRUN, {});
     }
+
     return _decodeChildren(data, offset, offset + 1, length);
   } else if (data[offset] >= 0xb8) {
     const lengthLength = data[offset] - 0xb7;
+
     if (offset + 1 + lengthLength > data.length) {
       logger.throwError("data array too short", _logger.Logger.errors.BUFFER_OVERRUN, {});
     }
+
     const length = unarrayifyInteger(data, offset + 1, lengthLength);
+
     if (offset + 1 + lengthLength + length > data.length) {
       logger.throwError("data array too short", _logger.Logger.errors.BUFFER_OVERRUN, {});
     }
+
     const result = (0, _bytes.hexlify)(data.slice(offset + 1 + lengthLength, offset + 1 + lengthLength + length));
     return {
       consumed: 1 + lengthLength + length,
@@ -7824,26 +8537,33 @@ function _decode(data, offset) {
     };
   } else if (data[offset] >= 0x80) {
     const length = data[offset] - 0x80;
+
     if (offset + 1 + length > data.length) {
       logger.throwError("data too short", _logger.Logger.errors.BUFFER_OVERRUN, {});
     }
+
     const result = (0, _bytes.hexlify)(data.slice(offset + 1, offset + 1 + length));
     return {
       consumed: 1 + length,
       result: result
     };
   }
+
   return {
     consumed: 1,
     result: (0, _bytes.hexlify)(data[offset])
   };
 }
+
 function decode(data) {
   const bytes = (0, _bytes.arrayify)(data);
+
   const decoded = _decode(bytes, 0);
+
   if (decoded.consumed !== bytes.length) {
     logger.throwArgumentError("invalid rlp data", "data", data);
   }
+
   return decoded.result;
 }
 },{"@ethersproject/bytes":"aqkS","@ethersproject/logger":"kMNH","./_version":"vKAI"}],"ggg3":[function(require,module,exports) {
@@ -7866,134 +8586,179 @@ exports.getContractAddress = getContractAddress;
 exports.getCreate2Address = getCreate2Address;
 exports.getIcapAddress = getIcapAddress;
 exports.isAddress = isAddress;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _keccak = require("@ethersproject/keccak256");
+
 var _rlp = require("@ethersproject/rlp");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 const logger = new _logger.Logger(_version.version);
+
 function getChecksumAddress(address) {
   if (!(0, _bytes.isHexString)(address, 20)) {
     logger.throwArgumentError("invalid address", "address", address);
   }
+
   address = address.toLowerCase();
   const chars = address.substring(2).split("");
   const expanded = new Uint8Array(40);
+
   for (let i = 0; i < 40; i++) {
     expanded[i] = chars[i].charCodeAt(0);
   }
+
   const hashed = (0, _bytes.arrayify)((0, _keccak.keccak256)(expanded));
+
   for (let i = 0; i < 40; i += 2) {
     if (hashed[i >> 1] >> 4 >= 8) {
       chars[i] = chars[i].toUpperCase();
     }
+
     if ((hashed[i >> 1] & 0x0f) >= 8) {
       chars[i + 1] = chars[i + 1].toUpperCase();
     }
   }
+
   return "0x" + chars.join("");
-}
-// Shims for environments that are missing some required constants and functions
+} // Shims for environments that are missing some required constants and functions
+
+
 const MAX_SAFE_INTEGER = 0x1fffffffffffff;
+
 function log10(x) {
   if (Math.log10) {
     return Math.log10(x);
   }
+
   return Math.log(x) / Math.LN10;
-}
-// See: https://en.wikipedia.org/wiki/International_Bank_Account_Number
+} // See: https://en.wikipedia.org/wiki/International_Bank_Account_Number
 // Create lookup table
+
+
 const ibanLookup = {};
+
 for (let i = 0; i < 10; i++) {
   ibanLookup[String(i)] = String(i);
 }
+
 for (let i = 0; i < 26; i++) {
   ibanLookup[String.fromCharCode(65 + i)] = String(10 + i);
-}
-// How many decimal digits can we process? (for 64-bit float, this is 15)
+} // How many decimal digits can we process? (for 64-bit float, this is 15)
+
+
 const safeDigits = Math.floor(log10(MAX_SAFE_INTEGER));
+
 function ibanChecksum(address) {
   address = address.toUpperCase();
   address = address.substring(4) + address.substring(0, 2) + "00";
   let expanded = address.split("").map(c => {
     return ibanLookup[c];
-  }).join("");
-  // Javascript can handle integers safely up to 15 (decimal) digits
+  }).join(""); // Javascript can handle integers safely up to 15 (decimal) digits
+
   while (expanded.length >= safeDigits) {
     let block = expanded.substring(0, safeDigits);
     expanded = parseInt(block, 10) % 97 + expanded.substring(block.length);
   }
+
   let checksum = String(98 - parseInt(expanded, 10) % 97);
+
   while (checksum.length < 2) {
     checksum = "0" + checksum;
   }
+
   return checksum;
 }
+
 ;
+
 function getAddress(address) {
   let result = null;
+
   if (typeof address !== "string") {
     logger.throwArgumentError("invalid address", "address", address);
   }
+
   if (address.match(/^(0x)?[0-9a-fA-F]{40}$/)) {
     // Missing the 0x prefix
     if (address.substring(0, 2) !== "0x") {
       address = "0x" + address;
     }
-    result = getChecksumAddress(address);
-    // It is a checksummed address with a bad checksum
+
+    result = getChecksumAddress(address); // It is a checksummed address with a bad checksum
+
     if (address.match(/([A-F].*[a-f])|([a-f].*[A-F])/) && result !== address) {
       logger.throwArgumentError("bad address checksum", "address", address);
-    }
-    // Maybe ICAP? (we only support direct mode)
+    } // Maybe ICAP? (we only support direct mode)
+
   } else if (address.match(/^XE[0-9]{2}[0-9A-Za-z]{30,31}$/)) {
     // It is an ICAP address with a bad checksum
     if (address.substring(2, 4) !== ibanChecksum(address)) {
       logger.throwArgumentError("bad icap checksum", "address", address);
     }
+
     result = (0, _bignumber._base36To16)(address.substring(4));
+
     while (result.length < 40) {
       result = "0" + result;
     }
+
     result = getChecksumAddress("0x" + result);
   } else {
     logger.throwArgumentError("invalid address", "address", address);
   }
+
   return result;
 }
+
 function isAddress(address) {
   try {
     getAddress(address);
     return true;
   } catch (error) {}
+
   return false;
 }
+
 function getIcapAddress(address) {
   let base36 = (0, _bignumber._base16To36)(getAddress(address).substring(2)).toUpperCase();
+
   while (base36.length < 30) {
     base36 = "0" + base36;
   }
+
   return "XE" + ibanChecksum("XE00" + base36) + base36;
-}
-// http://ethereum.stackexchange.com/questions/760/how-is-the-address-of-an-ethereum-contract-computed
+} // http://ethereum.stackexchange.com/questions/760/how-is-the-address-of-an-ethereum-contract-computed
+
+
 function getContractAddress(transaction) {
   let from = null;
+
   try {
     from = getAddress(transaction.from);
   } catch (error) {
     logger.throwArgumentError("missing from address", "transaction", transaction);
   }
+
   const nonce = (0, _bytes.stripZeros)((0, _bytes.arrayify)(_bignumber.BigNumber.from(transaction.nonce).toHexString()));
   return getAddress((0, _bytes.hexDataSlice)((0, _keccak.keccak256)((0, _rlp.encode)([from, nonce])), 12));
 }
+
 function getCreate2Address(from, salt, initCodeHash) {
   if ((0, _bytes.hexDataLength)(salt) !== 32) {
     logger.throwArgumentError("salt must be 32 bytes", "salt", salt);
   }
+
   if ((0, _bytes.hexDataLength)(initCodeHash) !== 32) {
     logger.throwArgumentError("initCodeHash must be 32 bytes", "initCodeHash", initCodeHash);
   }
+
   return getAddress((0, _bytes.hexDataSlice)((0, _keccak.keccak256)((0, _bytes.concat)(["0xff", getAddress(from), salt, initCodeHash])), 12));
 }
 },{"@ethersproject/bytes":"aqkS","@ethersproject/bignumber":"efJK","@ethersproject/keccak256":"g6Gq","@ethersproject/rlp":"oUFp","@ethersproject/logger":"kMNH","./_version":"ggg3"}],"jTgY":[function(require,module,exports) {
@@ -8003,28 +8768,38 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.AddressCoder = void 0;
+
 var _address = require("@ethersproject/address");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _abstractCoder = require("./abstract-coder");
+
 class AddressCoder extends _abstractCoder.Coder {
   constructor(localName) {
     super("address", "address", localName, false);
   }
+
   defaultValue() {
     return "0x0000000000000000000000000000000000000000";
   }
+
   encode(writer, value) {
     try {
       value = (0, _address.getAddress)(value);
     } catch (error) {
       this._throwError(error.message, value);
     }
+
     return writer.writeValue(value);
   }
+
   decode(reader) {
     return (0, _address.getAddress)((0, _bytes.hexZeroPad)(reader.readValue().toHexString(), 20));
   }
+
 }
+
 exports.AddressCoder = AddressCoder;
 },{"@ethersproject/address":"a1wm","@ethersproject/bytes":"aqkS","./abstract-coder":"T2f8"}],"FLmG":[function(require,module,exports) {
 "use strict";
@@ -8033,23 +8808,30 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.AnonymousCoder = void 0;
+
 var _abstractCoder = require("./abstract-coder");
+
 // Clones the functionality of an existing Coder, but without a localName
 class AnonymousCoder extends _abstractCoder.Coder {
   constructor(coder) {
     super(coder.name, coder.type, undefined, coder.dynamic);
     this.coder = coder;
   }
+
   defaultValue() {
     return this.coder.defaultValue();
   }
+
   encode(writer, value) {
     return this.coder.encode(writer, value);
   }
+
   decode(reader) {
     return this.coder.decode(reader);
   }
+
 }
+
 exports.AnonymousCoder = AnonymousCoder;
 },{"./abstract-coder":"T2f8"}],"qwJ9":[function(require,module,exports) {
 "use strict";
@@ -8060,19 +8842,27 @@ Object.defineProperty(exports, "__esModule", {
 exports.ArrayCoder = void 0;
 exports.pack = pack;
 exports.unpack = unpack;
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("../_version");
+
 var _abstractCoder = require("./abstract-coder");
+
 var _anonymous = require("./anonymous");
+
 const logger = new _logger.Logger(_version.version);
+
 function pack(writer, coders, values) {
   let arrayValues = null;
+
   if (Array.isArray(values)) {
     arrayValues = values;
   } else if (values && typeof values === "object") {
     let unique = {};
     arrayValues = coders.map(coder => {
       const name = coder.localName;
+
       if (!name) {
         logger.throwError("cannot encode object for signature with missing names", _logger.Logger.errors.INVALID_ARGUMENT, {
           argument: "values",
@@ -8080,6 +8870,7 @@ function pack(writer, coders, values) {
           value: values
         });
       }
+
       if (unique[name]) {
         logger.throwError("cannot encode object for signature with duplicate names", _logger.Logger.errors.INVALID_ARGUMENT, {
           argument: "values",
@@ -8087,26 +8878,30 @@ function pack(writer, coders, values) {
           value: values
         });
       }
+
       unique[name] = true;
       return values[name];
     });
   } else {
     logger.throwArgumentError("invalid tuple value", "tuple", values);
   }
+
   if (coders.length !== arrayValues.length) {
     logger.throwArgumentError("types/value length mismatch", "tuple", values);
   }
+
   let staticWriter = new _abstractCoder.Writer(writer.wordSize);
   let dynamicWriter = new _abstractCoder.Writer(writer.wordSize);
   let updateFuncs = [];
   coders.forEach((coder, index) => {
     let value = arrayValues[index];
+
     if (coder.dynamic) {
       // Get current dynamic offset (for the future pointer)
-      let dynamicOffset = dynamicWriter.length;
-      // Encode the dynamic value into the dynamicWriter
-      coder.encode(dynamicWriter, value);
-      // Prepare to populate the correct offset once we are done
+      let dynamicOffset = dynamicWriter.length; // Encode the dynamic value into the dynamicWriter
+
+      coder.encode(dynamicWriter, value); // Prepare to populate the correct offset once we are done
+
       let updateFunc = staticWriter.writeUpdatableValue();
       updateFuncs.push(baseOffset => {
         updateFunc(baseOffset + dynamicOffset);
@@ -8114,8 +8909,8 @@ function pack(writer, coders, values) {
     } else {
       coder.encode(staticWriter, value);
     }
-  });
-  // Backfill all the dynamic offsets, now that we know the static length
+  }); // Backfill all the dynamic offsets, now that we know the static length
+
   updateFuncs.forEach(func => {
     func(staticWriter.length);
   });
@@ -8123,15 +8918,18 @@ function pack(writer, coders, values) {
   length += writer.appendWriter(dynamicWriter);
   return length;
 }
+
 function unpack(reader, coders) {
-  let values = [];
-  // A reader anchored to this base
+  let values = []; // A reader anchored to this base
+
   let baseReader = reader.subReader(0);
   coders.forEach(coder => {
     let value = null;
+
     if (coder.dynamic) {
       let offset = reader.readValue();
       let offsetReader = baseReader.subReader(offset.toNumber());
+
       try {
         value = coder.decode(offsetReader);
       } catch (error) {
@@ -8139,6 +8937,7 @@ function unpack(reader, coders) {
         if (error.code === _logger.Logger.errors.BUFFER_OVERRUN) {
           throw error;
         }
+
         value = error;
         value.baseType = coder.name;
         value.name = coder.localName;
@@ -8152,40 +8951,50 @@ function unpack(reader, coders) {
         if (error.code === _logger.Logger.errors.BUFFER_OVERRUN) {
           throw error;
         }
+
         value = error;
         value.baseType = coder.name;
         value.name = coder.localName;
         value.type = coder.type;
       }
     }
+
     if (value != undefined) {
       values.push(value);
     }
-  });
-  // We only output named properties for uniquely named coders
+  }); // We only output named properties for uniquely named coders
+
   const uniqueNames = coders.reduce((accum, coder) => {
     const name = coder.localName;
+
     if (name) {
       if (!accum[name]) {
         accum[name] = 0;
       }
+
       accum[name]++;
     }
+
     return accum;
-  }, {});
-  // Add any named parameters (i.e. tuples)
+  }, {}); // Add any named parameters (i.e. tuples)
+
   coders.forEach((coder, index) => {
     let name = coder.localName;
+
     if (!name || uniqueNames[name] !== 1) {
       return;
     }
+
     if (name === "length") {
       name = "_length";
     }
+
     if (values[name] != null) {
       return;
     }
+
     const value = values[index];
+
     if (value instanceof Error) {
       Object.defineProperty(values, name, {
         enumerable: true,
@@ -8197,8 +9006,10 @@ function unpack(reader, coders) {
       values[name] = value;
     }
   });
+
   for (let i = 0; i < values.length; i++) {
     const value = values[i];
+
     if (value instanceof Error) {
       Object.defineProperty(values, i, {
         enumerable: true,
@@ -8208,8 +9019,10 @@ function unpack(reader, coders) {
       });
     }
   }
+
   return Object.freeze(values);
 }
+
 class ArrayCoder extends _abstractCoder.Coder {
   constructor(coder, length, localName) {
     const type = coder.type + "[" + (length >= 0 ? length : "") + "]";
@@ -8218,40 +9031,51 @@ class ArrayCoder extends _abstractCoder.Coder {
     this.coder = coder;
     this.length = length;
   }
+
   defaultValue() {
     // Verifies the child coder is valid (even if the array is dynamic or 0-length)
     const defaultChild = this.coder.defaultValue();
     const result = [];
+
     for (let i = 0; i < this.length; i++) {
       result.push(defaultChild);
     }
+
     return result;
   }
+
   encode(writer, value) {
     if (!Array.isArray(value)) {
       this._throwError("expected array value", value);
     }
+
     let count = this.length;
+
     if (count === -1) {
       count = value.length;
       writer.writeValue(value.length);
     }
+
     logger.checkArgumentCount(value.length, count, "coder array" + (this.localName ? " " + this.localName : ""));
     let coders = [];
+
     for (let i = 0; i < value.length; i++) {
       coders.push(this.coder);
     }
+
     return pack(writer, coders, value);
   }
+
   decode(reader) {
     let count = this.length;
+
     if (count === -1) {
-      count = reader.readValue().toNumber();
-      // Check that there is *roughly* enough data to ensure
+      count = reader.readValue().toNumber(); // Check that there is *roughly* enough data to ensure
       // stray random data is not being read as a length. Each
       // slot requires at least 32 bytes for their value (or 32
       // bytes as a link to the data). This could use a much
       // tighter bound, but we are erroring on the side of safety.
+
       if (count * 32 > reader._data.length) {
         logger.throwError("insufficient data length", _logger.Logger.errors.BUFFER_OVERRUN, {
           length: reader._data.length,
@@ -8259,13 +9083,18 @@ class ArrayCoder extends _abstractCoder.Coder {
         });
       }
     }
+
     let coders = [];
+
     for (let i = 0; i < count; i++) {
       coders.push(new _anonymous.AnonymousCoder(this.coder));
     }
+
     return reader.coerce(this.name, unpack(reader, coders));
   }
+
 }
+
 exports.ArrayCoder = ArrayCoder;
 },{"@ethersproject/logger":"kMNH","../_version":"KSRV","./abstract-coder":"T2f8","./anonymous":"FLmG"}],"yHWj":[function(require,module,exports) {
 "use strict";
@@ -8274,21 +9103,28 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.BooleanCoder = void 0;
+
 var _abstractCoder = require("./abstract-coder");
+
 class BooleanCoder extends _abstractCoder.Coder {
   constructor(localName) {
     super("bool", "bool", localName, false);
   }
+
   defaultValue() {
     return false;
   }
+
   encode(writer, value) {
     return writer.writeValue(value ? 1 : 0);
   }
+
   decode(reader) {
     return reader.coerce(this.type, !reader.readValue().isZero());
   }
+
 }
+
 exports.BooleanCoder = BooleanCoder;
 },{"./abstract-coder":"T2f8"}],"qpiR":[function(require,module,exports) {
 "use strict";
@@ -8297,34 +9133,46 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.DynamicBytesCoder = exports.BytesCoder = void 0;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _abstractCoder = require("./abstract-coder");
+
 class DynamicBytesCoder extends _abstractCoder.Coder {
   constructor(type, localName) {
     super(type, type, localName, true);
   }
+
   defaultValue() {
     return "0x";
   }
+
   encode(writer, value) {
     value = (0, _bytes.arrayify)(value);
     let length = writer.writeValue(value.length);
     length += writer.writeBytes(value);
     return length;
   }
+
   decode(reader) {
     return reader.readBytes(reader.readValue().toNumber(), true);
   }
+
 }
+
 exports.DynamicBytesCoder = DynamicBytesCoder;
+
 class BytesCoder extends DynamicBytesCoder {
   constructor(localName) {
     super("bytes", localName);
   }
+
   decode(reader) {
     return reader.coerce(this.name, (0, _bytes.hexlify)(super.decode(reader)));
   }
+
 }
+
 exports.BytesCoder = BytesCoder;
 },{"@ethersproject/bytes":"aqkS","./abstract-coder":"T2f8"}],"MIFf":[function(require,module,exports) {
 "use strict";
@@ -8333,8 +9181,11 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.FixedBytesCoder = void 0;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _abstractCoder = require("./abstract-coder");
+
 // @TODO: Merge this with bytes
 class FixedBytesCoder extends _abstractCoder.Coder {
   constructor(size, localName) {
@@ -8342,20 +9193,27 @@ class FixedBytesCoder extends _abstractCoder.Coder {
     super(name, name, localName, false);
     this.size = size;
   }
+
   defaultValue() {
     return "0x0000000000000000000000000000000000000000000000000000000000000000".substring(0, 2 + this.size * 2);
   }
+
   encode(writer, value) {
     let data = (0, _bytes.arrayify)(value);
+
     if (data.length !== this.size) {
       this._throwError("incorrect data length", value);
     }
+
     return writer.writeBytes(data);
   }
+
   decode(reader) {
     return reader.coerce(this.name, (0, _bytes.hexlify)(reader.readBytes(this.size)));
   }
+
 }
+
 exports.FixedBytesCoder = FixedBytesCoder;
 },{"@ethersproject/bytes":"aqkS","./abstract-coder":"T2f8"}],"nCCc":[function(require,module,exports) {
 "use strict";
@@ -8364,25 +9222,33 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.NullCoder = void 0;
+
 var _abstractCoder = require("./abstract-coder");
+
 class NullCoder extends _abstractCoder.Coder {
   constructor(localName) {
     super("null", "", localName, false);
   }
+
   defaultValue() {
     return null;
   }
+
   encode(writer, value) {
     if (value != null) {
       this._throwError("not null", value);
     }
+
     return writer.writeBytes([]);
   }
+
   decode(reader) {
     reader.readBytes(0);
     return reader.coerce(this.name, null);
   }
+
 }
+
 exports.NullCoder = NullCoder;
 },{"./abstract-coder":"T2f8"}],"yytb":[function(require,module,exports) {
 "use strict";
@@ -8400,22 +9266,39 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.Zero = exports.WeiPerEther = exports.Two = exports.One = exports.NegativeOne = exports.MinInt256 = exports.MaxUint256 = exports.MaxInt256 = void 0;
+
 var _bignumber = require("@ethersproject/bignumber");
+
 const NegativeOne = /*#__PURE__*/_bignumber.BigNumber.from(-1);
+
 exports.NegativeOne = NegativeOne;
+
 const Zero = /*#__PURE__*/_bignumber.BigNumber.from(0);
+
 exports.Zero = Zero;
+
 const One = /*#__PURE__*/_bignumber.BigNumber.from(1);
+
 exports.One = One;
+
 const Two = /*#__PURE__*/_bignumber.BigNumber.from(2);
+
 exports.Two = Two;
+
 const WeiPerEther = /*#__PURE__*/_bignumber.BigNumber.from("1000000000000000000");
+
 exports.WeiPerEther = WeiPerEther;
+
 const MaxUint256 = /*#__PURE__*/_bignumber.BigNumber.from("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
 exports.MaxUint256 = MaxUint256;
+
 const MinInt256 = /*#__PURE__*/_bignumber.BigNumber.from("-0x8000000000000000000000000000000000000000000000000000000000000000");
+
 exports.MinInt256 = MinInt256;
+
 const MaxInt256 = /*#__PURE__*/_bignumber.BigNumber.from("0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
 exports.MaxInt256 = MaxInt256;
 },{"@ethersproject/bignumber":"efJK"}],"yISm":[function(require,module,exports) {
 "use strict";
@@ -8435,6 +9318,7 @@ Object.defineProperty(exports, "__esModule", {
 exports.EtherSymbol = void 0;
 // NFKC (composed)             // (decomposed)
 const EtherSymbol = "\u039e"; // "\uD835\uDF63";
+
 exports.EtherSymbol = EtherSymbol;
 },{}],"FOhG":[function(require,module,exports) {
 "use strict";
@@ -8508,9 +9392,13 @@ Object.defineProperty(exports, "Zero", {
     return _bignumbers.Zero;
   }
 });
+
 var _addresses = require("./addresses");
+
 var _bignumbers = require("./bignumbers");
+
 var _hashes = require("./hashes");
+
 var _strings = require("./strings");
 },{"./addresses":"yytb","./bignumbers":"IuDD","./hashes":"yISm","./strings":"BYiH"}],"jVEj":[function(require,module,exports) {
 "use strict";
@@ -8519,9 +9407,13 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.NumberCoder = void 0;
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _constants = require("@ethersproject/constants");
+
 var _abstractCoder = require("./abstract-coder");
+
 class NumberCoder extends _abstractCoder.Coder {
   constructor(size, signed, localName) {
     const name = (signed ? "int" : "uint") + size * 8;
@@ -8529,35 +9421,48 @@ class NumberCoder extends _abstractCoder.Coder {
     this.size = size;
     this.signed = signed;
   }
+
   defaultValue() {
     return 0;
   }
+
   encode(writer, value) {
-    let v = _bignumber.BigNumber.from(value);
-    // Check bounds are safe for encoding
+    let v = _bignumber.BigNumber.from(value); // Check bounds are safe for encoding
+
+
     let maxUintValue = _constants.MaxUint256.mask(writer.wordSize * 8);
+
     if (this.signed) {
       let bounds = maxUintValue.mask(this.size * 8 - 1);
+
       if (v.gt(bounds) || v.lt(bounds.add(_constants.One).mul(_constants.NegativeOne))) {
         this._throwError("value out-of-bounds", value);
       }
     } else if (v.lt(_constants.Zero) || v.gt(maxUintValue.mask(this.size * 8))) {
       this._throwError("value out-of-bounds", value);
     }
+
     v = v.toTwos(this.size * 8).mask(this.size * 8);
+
     if (this.signed) {
       v = v.fromTwos(this.size * 8).toTwos(8 * writer.wordSize);
     }
+
     return writer.writeValue(v);
   }
+
   decode(reader) {
     let value = reader.readValue().mask(this.size * 8);
+
     if (this.signed) {
       value = value.fromTwos(this.size * 8);
     }
+
     return reader.coerce(this.name, value);
   }
+
 }
+
 exports.NumberCoder = NumberCoder;
 },{"@ethersproject/bignumber":"efJK","@ethersproject/constants":"FOhG","./abstract-coder":"T2f8"}],"o9hJ":[function(require,module,exports) {
 "use strict";
@@ -8580,13 +9485,18 @@ exports._toUtf8String = _toUtf8String;
 exports.toUtf8Bytes = toUtf8Bytes;
 exports.toUtf8CodePoints = toUtf8CodePoints;
 exports.toUtf8String = toUtf8String;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
-const logger = new _logger.Logger(_version.version);
-///////////////////////////////
+
+const logger = new _logger.Logger(_version.version); ///////////////////////////////
+
 var UnicodeNormalizationForm;
 exports.UnicodeNormalizationForm = UnicodeNormalizationForm;
+
 (function (UnicodeNormalizationForm) {
   UnicodeNormalizationForm["current"] = "";
   UnicodeNormalizationForm["NFC"] = "NFC";
@@ -8594,105 +9504,119 @@ exports.UnicodeNormalizationForm = UnicodeNormalizationForm;
   UnicodeNormalizationForm["NFKC"] = "NFKC";
   UnicodeNormalizationForm["NFKD"] = "NFKD";
 })(UnicodeNormalizationForm || (exports.UnicodeNormalizationForm = UnicodeNormalizationForm = {}));
+
 ;
 var Utf8ErrorReason;
 exports.Utf8ErrorReason = Utf8ErrorReason;
+
 (function (Utf8ErrorReason) {
   // A continuation byte was present where there was nothing to continue
   // - offset = the index the codepoint began in
-  Utf8ErrorReason["UNEXPECTED_CONTINUE"] = "unexpected continuation byte";
-  // An invalid (non-continuation) byte to start a UTF-8 codepoint was found
+  Utf8ErrorReason["UNEXPECTED_CONTINUE"] = "unexpected continuation byte"; // An invalid (non-continuation) byte to start a UTF-8 codepoint was found
   // - offset = the index the codepoint began in
-  Utf8ErrorReason["BAD_PREFIX"] = "bad codepoint prefix";
-  // The string is too short to process the expected codepoint
+
+  Utf8ErrorReason["BAD_PREFIX"] = "bad codepoint prefix"; // The string is too short to process the expected codepoint
   // - offset = the index the codepoint began in
-  Utf8ErrorReason["OVERRUN"] = "string overrun";
-  // A missing continuation byte was expected but not found
+
+  Utf8ErrorReason["OVERRUN"] = "string overrun"; // A missing continuation byte was expected but not found
   // - offset = the index the continuation byte was expected at
-  Utf8ErrorReason["MISSING_CONTINUE"] = "missing continuation byte";
-  // The computed code point is outside the range for UTF-8
+
+  Utf8ErrorReason["MISSING_CONTINUE"] = "missing continuation byte"; // The computed code point is outside the range for UTF-8
   // - offset       = start of this codepoint
   // - badCodepoint = the computed codepoint; outside the UTF-8 range
-  Utf8ErrorReason["OUT_OF_RANGE"] = "out of UTF-8 range";
-  // UTF-8 strings may not contain UTF-16 surrogate pairs
+
+  Utf8ErrorReason["OUT_OF_RANGE"] = "out of UTF-8 range"; // UTF-8 strings may not contain UTF-16 surrogate pairs
   // - offset       = start of this codepoint
   // - badCodepoint = the computed codepoint; inside the UTF-16 surrogate range
-  Utf8ErrorReason["UTF16_SURROGATE"] = "UTF-16 surrogate";
-  // The string is an overlong representation
+
+  Utf8ErrorReason["UTF16_SURROGATE"] = "UTF-16 surrogate"; // The string is an overlong representation
   // - offset       = start of this codepoint
   // - badCodepoint = the computed codepoint; already bounds checked
+
   Utf8ErrorReason["OVERLONG"] = "overlong representation";
 })(Utf8ErrorReason || (exports.Utf8ErrorReason = Utf8ErrorReason = {}));
+
 ;
+
 function errorFunc(reason, offset, bytes, output, badCodepoint) {
   return logger.throwArgumentError(`invalid codepoint at offset ${offset}; ${reason}`, "bytes", bytes);
 }
+
 function ignoreFunc(reason, offset, bytes, output, badCodepoint) {
   // If there is an invalid prefix (including stray continuation), skip any additional continuation bytes
   if (reason === Utf8ErrorReason.BAD_PREFIX || reason === Utf8ErrorReason.UNEXPECTED_CONTINUE) {
     let i = 0;
+
     for (let o = offset + 1; o < bytes.length; o++) {
       if (bytes[o] >> 6 !== 0x02) {
         break;
       }
+
       i++;
     }
+
     return i;
-  }
-  // This byte runs us past the end of the string, so just jump to the end
+  } // This byte runs us past the end of the string, so just jump to the end
   // (but the first byte was read already read and therefore skipped)
+
+
   if (reason === Utf8ErrorReason.OVERRUN) {
     return bytes.length - offset - 1;
-  }
-  // Nothing to skip
+  } // Nothing to skip
+
+
   return 0;
 }
+
 function replaceFunc(reason, offset, bytes, output, badCodepoint) {
   // Overlong representations are otherwise "valid" code points; just non-deistingtished
   if (reason === Utf8ErrorReason.OVERLONG) {
     output.push(badCodepoint);
     return 0;
-  }
-  // Put the replacement character into the output
-  output.push(0xfffd);
-  // Otherwise, process as if ignoring errors
+  } // Put the replacement character into the output
+
+
+  output.push(0xfffd); // Otherwise, process as if ignoring errors
+
   return ignoreFunc(reason, offset, bytes, output, badCodepoint);
-}
-// Common error handing strategies
+} // Common error handing strategies
+
+
 const Utf8ErrorFuncs = Object.freeze({
   error: errorFunc,
   ignore: ignoreFunc,
   replace: replaceFunc
-});
-// http://stackoverflow.com/questions/13356493/decode-utf-8-with-javascript#13691499
+}); // http://stackoverflow.com/questions/13356493/decode-utf-8-with-javascript#13691499
+
 exports.Utf8ErrorFuncs = Utf8ErrorFuncs;
+
 function getUtf8CodePoints(bytes, onError) {
   if (onError == null) {
     onError = Utf8ErrorFuncs.error;
   }
+
   bytes = (0, _bytes.arrayify)(bytes);
   const result = [];
-  let i = 0;
-  // Invalid bytes are ignored
+  let i = 0; // Invalid bytes are ignored
+
   while (i < bytes.length) {
-    const c = bytes[i++];
-    // 0xxx xxxx
+    const c = bytes[i++]; // 0xxx xxxx
+
     if (c >> 7 === 0) {
       result.push(c);
       continue;
-    }
-    // Multibyte; how many bytes left for this character?
+    } // Multibyte; how many bytes left for this character?
+
+
     let extraLength = null;
-    let overlongMask = null;
-    // 110x xxxx 10xx xxxx
+    let overlongMask = null; // 110x xxxx 10xx xxxx
+
     if ((c & 0xe0) === 0xc0) {
       extraLength = 1;
-      overlongMask = 0x7f;
-      // 1110 xxxx 10xx xxxx 10xx xxxx
+      overlongMask = 0x7f; // 1110 xxxx 10xx xxxx 10xx xxxx
     } else if ((c & 0xf0) === 0xe0) {
       extraLength = 2;
-      overlongMask = 0x7ff;
-      // 1111 0xxx 10xx xxxx 10xx xxxx 10xx xxxx
+      overlongMask = 0x7ff; // 1111 0xxx 10xx xxxx 10xx xxxx 10xx xxxx
     } else if ((c & 0xf8) === 0xf0) {
       extraLength = 3;
       overlongMask = 0xffff;
@@ -8702,59 +9626,74 @@ function getUtf8CodePoints(bytes, onError) {
       } else {
         i += onError(Utf8ErrorReason.BAD_PREFIX, i - 1, bytes, result);
       }
+
       continue;
-    }
-    // Do we have enough bytes in our data?
+    } // Do we have enough bytes in our data?
+
+
     if (i - 1 + extraLength >= bytes.length) {
       i += onError(Utf8ErrorReason.OVERRUN, i - 1, bytes, result);
       continue;
-    }
-    // Remove the length prefix from the char
+    } // Remove the length prefix from the char
+
+
     let res = c & (1 << 8 - extraLength - 1) - 1;
+
     for (let j = 0; j < extraLength; j++) {
-      let nextChar = bytes[i];
-      // Invalid continuation byte
+      let nextChar = bytes[i]; // Invalid continuation byte
+
       if ((nextChar & 0xc0) != 0x80) {
         i += onError(Utf8ErrorReason.MISSING_CONTINUE, i, bytes, result);
         res = null;
         break;
       }
+
       ;
       res = res << 6 | nextChar & 0x3f;
       i++;
-    }
-    // See above loop for invalid continuation byte
+    } // See above loop for invalid continuation byte
+
+
     if (res === null) {
       continue;
-    }
-    // Maximum code point
+    } // Maximum code point
+
+
     if (res > 0x10ffff) {
       i += onError(Utf8ErrorReason.OUT_OF_RANGE, i - 1 - extraLength, bytes, result, res);
       continue;
-    }
-    // Reserved for UTF-16 surrogate halves
+    } // Reserved for UTF-16 surrogate halves
+
+
     if (res >= 0xd800 && res <= 0xdfff) {
       i += onError(Utf8ErrorReason.UTF16_SURROGATE, i - 1 - extraLength, bytes, result, res);
       continue;
-    }
-    // Check for overlong sequences (more bytes than needed)
+    } // Check for overlong sequences (more bytes than needed)
+
+
     if (res <= overlongMask) {
       i += onError(Utf8ErrorReason.OVERLONG, i - 1 - extraLength, bytes, result, res);
       continue;
     }
+
     result.push(res);
   }
+
   return result;
-}
-// http://stackoverflow.com/questions/18729405/how-to-convert-utf8-string-to-byte-array
+} // http://stackoverflow.com/questions/18729405/how-to-convert-utf8-string-to-byte-array
+
+
 function toUtf8Bytes(str, form = UnicodeNormalizationForm.current) {
   if (form != UnicodeNormalizationForm.current) {
     logger.checkNormalize();
     str = str.normalize(form);
   }
+
   let result = [];
+
   for (let i = 0; i < str.length; i++) {
     const c = str.charCodeAt(i);
+
     if (c < 0x80) {
       result.push(c);
     } else if (c < 0x800) {
@@ -8763,10 +9702,12 @@ function toUtf8Bytes(str, form = UnicodeNormalizationForm.current) {
     } else if ((c & 0xfc00) == 0xd800) {
       i++;
       const c2 = str.charCodeAt(i);
+
       if (i >= str.length || (c2 & 0xfc00) !== 0xdc00) {
         throw new Error("invalid utf-8 string");
-      }
-      // Surrogate Pair
+      } // Surrogate Pair
+
+
       const pair = 0x10000 + ((c & 0x03ff) << 10) + (c2 & 0x03ff);
       result.push(pair >> 18 | 0xf0);
       result.push(pair >> 12 & 0x3f | 0x80);
@@ -8778,53 +9719,69 @@ function toUtf8Bytes(str, form = UnicodeNormalizationForm.current) {
       result.push(c & 0x3f | 0x80);
     }
   }
+
   return (0, _bytes.arrayify)(result);
 }
+
 ;
+
 function escapeChar(value) {
   const hex = "0000" + value.toString(16);
   return "\\u" + hex.substring(hex.length - 4);
 }
+
 function _toEscapedUtf8String(bytes, onError) {
   return '"' + getUtf8CodePoints(bytes, onError).map(codePoint => {
     if (codePoint < 256) {
       switch (codePoint) {
         case 8:
           return "\\b";
+
         case 9:
           return "\\t";
+
         case 10:
           return "\\n";
+
         case 13:
           return "\\r";
+
         case 34:
           return "\\\"";
+
         case 92:
           return "\\\\";
       }
+
       if (codePoint >= 32 && codePoint < 127) {
         return String.fromCharCode(codePoint);
       }
     }
+
     if (codePoint <= 0xffff) {
       return escapeChar(codePoint);
     }
+
     codePoint -= 0x10000;
     return escapeChar((codePoint >> 10 & 0x3ff) + 0xd800) + escapeChar((codePoint & 0x3ff) + 0xdc00);
   }).join("") + '"';
 }
+
 function _toUtf8String(codePoints) {
   return codePoints.map(codePoint => {
     if (codePoint <= 0xffff) {
       return String.fromCharCode(codePoint);
     }
+
     codePoint -= 0x10000;
     return String.fromCharCode((codePoint >> 10 & 0x3ff) + 0xd800, (codePoint & 0x3ff) + 0xdc00);
   }).join("");
 }
+
 function toUtf8String(bytes, onError) {
   return _toUtf8String(getUtf8CodePoints(bytes, onError));
 }
+
 function toUtf8CodePoints(str, form = UnicodeNormalizationForm.current) {
   return getUtf8CodePoints(toUtf8Bytes(str, form));
 }
@@ -8836,34 +9793,44 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.formatBytes32String = formatBytes32String;
 exports.parseBytes32String = parseBytes32String;
+
 var _constants = require("@ethersproject/constants");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _utf = require("./utf8");
+
 function formatBytes32String(text) {
   // Get the bytes
-  const bytes = (0, _utf.toUtf8Bytes)(text);
-  // Check we have room for null-termination
+  const bytes = (0, _utf.toUtf8Bytes)(text); // Check we have room for null-termination
+
   if (bytes.length > 31) {
     throw new Error("bytes32 string must be less than 32 bytes");
-  }
-  // Zero-pad (implicitly null-terminates)
+  } // Zero-pad (implicitly null-terminates)
+
+
   return (0, _bytes.hexlify)((0, _bytes.concat)([bytes, _constants.HashZero]).slice(0, 32));
 }
+
 function parseBytes32String(bytes) {
-  const data = (0, _bytes.arrayify)(bytes);
-  // Must be 32 bytes with a null-termination
+  const data = (0, _bytes.arrayify)(bytes); // Must be 32 bytes with a null-termination
+
   if (data.length !== 32) {
     throw new Error("invalid bytes32 - not 32 bytes long");
   }
+
   if (data[31] !== 0) {
     throw new Error("invalid bytes32 string - no null terminator");
-  }
-  // Find the null termination
+  } // Find the null termination
+
+
   let length = 31;
+
   while (data[length - 1] === 0) {
     length--;
-  }
-  // Determine the string value
+  } // Determine the string value
+
+
   return (0, _utf.toUtf8String)(data.slice(0, length));
 }
 },{"@ethersproject/constants":"FOhG","@ethersproject/bytes":"aqkS","./utf8":"pSQg"}],"rPEv":[function(require,module,exports) {
@@ -8876,23 +9843,30 @@ exports._nameprepTableA1 = _nameprepTableA1;
 exports._nameprepTableB2 = _nameprepTableB2;
 exports._nameprepTableC = _nameprepTableC;
 exports.nameprep = nameprep;
+
 var _utf = require("./utf8");
+
 function bytes2(data) {
   if (data.length % 4 !== 0) {
     throw new Error("bad data");
   }
+
   let result = [];
+
   for (let i = 0; i < data.length; i += 4) {
     result.push(parseInt(data.substring(i, i + 4), 16));
   }
+
   return result;
 }
+
 function createTable(data, func) {
   if (!func) {
     func = function (value) {
       return [parseInt(value, 16)];
     };
   }
+
   let lo = 0;
   let result = {};
   data.split(",").forEach(pair => {
@@ -8902,15 +9876,18 @@ function createTable(data, func) {
   });
   return result;
 }
+
 function createRangeTable(data) {
   let hi = 0;
   return data.split(",").map(v => {
     let comps = v.split("-");
+
     if (comps.length === 1) {
       comps[1] = "0";
     } else if (comps[1] === "") {
       comps[1] = "1";
     }
+
     let lo = hi + parseInt(comps[0], 16);
     hi = parseInt(comps[1], 16);
     return {
@@ -8919,22 +9896,28 @@ function createRangeTable(data) {
     };
   });
 }
+
 function matchMap(value, ranges) {
   let lo = 0;
+
   for (let i = 0; i < ranges.length; i++) {
     let range = ranges[i];
     lo += range.l;
+
     if (value >= lo && value <= lo + range.h && (value - lo) % (range.d || 1) === 0) {
       if (range.e && range.e.indexOf(value - lo) !== -1) {
         continue;
       }
+
       return range;
     }
   }
+
   return null;
 }
-const Table_A_1_ranges = createRangeTable("221,13-1b,5f-,40-10,51-f,11-3,3-3,2-2,2-4,8,2,15,2d,28-8,88,48,27-,3-5,11-20,27-,8,28,3-5,12,18,b-a,1c-4,6-16,2-d,2-2,2,1b-4,17-9,8f-,10,f,1f-2,1c-34,33-14e,4,36-,13-,6-2,1a-f,4,9-,3-,17,8,2-2,5-,2,8-,3-,4-8,2-3,3,6-,16-6,2-,7-3,3-,17,8,3,3,3-,2,6-3,3-,4-a,5,2-6,10-b,4,8,2,4,17,8,3,6-,b,4,4-,2-e,2-4,b-10,4,9-,3-,17,8,3-,5-,9-2,3-,4-7,3-3,3,4-3,c-10,3,7-2,4,5-2,3,2,3-2,3-2,4-2,9,4-3,6-2,4,5-8,2-e,d-d,4,9,4,18,b,6-3,8,4,5-6,3-8,3-3,b-11,3,9,4,18,b,6-3,8,4,5-6,3-6,2,3-3,b-11,3,9,4,18,11-3,7-,4,5-8,2-7,3-3,b-11,3,13-2,19,a,2-,8-2,2-3,7,2,9-11,4-b,3b-3,1e-24,3,2-,3,2-,2-5,5,8,4,2,2-,3,e,4-,6,2,7-,b-,3-21,49,23-5,1c-3,9,25,10-,2-2f,23,6,3,8-2,5-5,1b-45,27-9,2a-,2-3,5b-4,45-4,53-5,8,40,2,5-,8,2,5-,28,2,5-,20,2,5-,8,2,5-,8,8,18,20,2,5-,8,28,14-5,1d-22,56-b,277-8,1e-2,52-e,e,8-a,18-8,15-b,e,4,3-b,5e-2,b-15,10,b-5,59-7,2b-555,9d-3,5b-5,17-,7-,27-,7-,9,2,2,2,20-,36,10,f-,7,14-,4,a,54-3,2-6,6-5,9-,1c-10,13-1d,1c-14,3c-,10-6,32-b,240-30,28-18,c-14,a0,115-,3,66-,b-76,5,5-,1d,24,2,5-2,2,8-,35-2,19,f-10,1d-3,311-37f,1b,5a-b,d7-19,d-3,41,57-,68-4,29-3,5f,29-37,2e-2,25-c,2c-2,4e-3,30,78-3,64-,20,19b7-49,51a7-59,48e-2,38-738,2ba5-5b,222f-,3c-94,8-b,6-4,1b,6,2,3,3,6d-20,16e-f,41-,37-7,2e-2,11-f,5-b,18-,b,14,5-3,6,88-,2,bf-2,7-,7-,7-,4-2,8,8-9,8-2ff,20,5-b,1c-b4,27-,27-cbb1,f7-9,28-2,b5-221,56,48,3-,2-,3-,5,d,2,5,3,42,5-,9,8,1d,5,6,2-2,8,153-3,123-3,33-27fd,a6da-5128,21f-5df,3-fffd,3-fffd,3-fffd,3-fffd,3-fffd,3-fffd,3-fffd,3-fffd,3-fffd,3-fffd,3-fffd,3,2-1d,61-ff7d");
-// @TODO: Make this relative...
+
+const Table_A_1_ranges = createRangeTable("221,13-1b,5f-,40-10,51-f,11-3,3-3,2-2,2-4,8,2,15,2d,28-8,88,48,27-,3-5,11-20,27-,8,28,3-5,12,18,b-a,1c-4,6-16,2-d,2-2,2,1b-4,17-9,8f-,10,f,1f-2,1c-34,33-14e,4,36-,13-,6-2,1a-f,4,9-,3-,17,8,2-2,5-,2,8-,3-,4-8,2-3,3,6-,16-6,2-,7-3,3-,17,8,3,3,3-,2,6-3,3-,4-a,5,2-6,10-b,4,8,2,4,17,8,3,6-,b,4,4-,2-e,2-4,b-10,4,9-,3-,17,8,3-,5-,9-2,3-,4-7,3-3,3,4-3,c-10,3,7-2,4,5-2,3,2,3-2,3-2,4-2,9,4-3,6-2,4,5-8,2-e,d-d,4,9,4,18,b,6-3,8,4,5-6,3-8,3-3,b-11,3,9,4,18,b,6-3,8,4,5-6,3-6,2,3-3,b-11,3,9,4,18,11-3,7-,4,5-8,2-7,3-3,b-11,3,13-2,19,a,2-,8-2,2-3,7,2,9-11,4-b,3b-3,1e-24,3,2-,3,2-,2-5,5,8,4,2,2-,3,e,4-,6,2,7-,b-,3-21,49,23-5,1c-3,9,25,10-,2-2f,23,6,3,8-2,5-5,1b-45,27-9,2a-,2-3,5b-4,45-4,53-5,8,40,2,5-,8,2,5-,28,2,5-,20,2,5-,8,2,5-,8,8,18,20,2,5-,8,28,14-5,1d-22,56-b,277-8,1e-2,52-e,e,8-a,18-8,15-b,e,4,3-b,5e-2,b-15,10,b-5,59-7,2b-555,9d-3,5b-5,17-,7-,27-,7-,9,2,2,2,20-,36,10,f-,7,14-,4,a,54-3,2-6,6-5,9-,1c-10,13-1d,1c-14,3c-,10-6,32-b,240-30,28-18,c-14,a0,115-,3,66-,b-76,5,5-,1d,24,2,5-2,2,8-,35-2,19,f-10,1d-3,311-37f,1b,5a-b,d7-19,d-3,41,57-,68-4,29-3,5f,29-37,2e-2,25-c,2c-2,4e-3,30,78-3,64-,20,19b7-49,51a7-59,48e-2,38-738,2ba5-5b,222f-,3c-94,8-b,6-4,1b,6,2,3,3,6d-20,16e-f,41-,37-7,2e-2,11-f,5-b,18-,b,14,5-3,6,88-,2,bf-2,7-,7-,7-,4-2,8,8-9,8-2ff,20,5-b,1c-b4,27-,27-cbb1,f7-9,28-2,b5-221,56,48,3-,2-,3-,5,d,2,5,3,42,5-,9,8,1d,5,6,2-2,8,153-3,123-3,33-27fd,a6da-5128,21f-5df,3-fffd,3-fffd,3-fffd,3-fffd,3-fffd,3-fffd,3-fffd,3-fffd,3-fffd,3-fffd,3-fffd,3,2-1d,61-ff7d"); // @TODO: Make this relative...
+
 const Table_B_1_flags = "ad,34f,1806,180b,180c,180d,200b,200c,200d,2060,feff".split(",").map(v => parseInt(v, 16));
 const Table_B_2_ranges = [{
   h: 25,
@@ -9137,6 +10120,7 @@ const Table_B_2_lut_abs = createTable("b5:3bc,c3:ff,7:73,2:253,5:254,3:256,1:257
 const Table_B_2_lut_rel = createTable("179:1,2:1,2:1,5:1,2:1,a:4f,a:1,8:1,2:1,2:1,3:1,5:1,3:1,4:1,2:1,3:1,4:1,8:2,1:1,2:2,1:1,2:2,27:2,195:26,2:25,1:25,1:25,2:40,2:3f,1:3f,33:1,11:-6,1:-9,1ac7:-3a,6d:-8,1:-8,1:-8,1:-8,1:-8,1:-8,1:-8,1:-8,9:-8,1:-8,1:-8,1:-8,1:-8,1:-8,b:-8,1:-8,1:-8,1:-8,1:-8,1:-8,1:-8,1:-8,9:-8,1:-8,1:-8,1:-8,1:-8,1:-8,1:-8,1:-8,9:-8,1:-8,1:-8,1:-8,1:-8,1:-8,c:-8,2:-8,2:-8,2:-8,9:-8,1:-8,1:-8,1:-8,1:-8,1:-8,1:-8,1:-8,49:-8,1:-8,1:-4a,1:-4a,d:-56,1:-56,1:-56,1:-56,d:-8,1:-8,f:-8,1:-8,3:-7");
 const Table_B_2_complex = createTable("df:00730073,51:00690307,19:02BC006E,a7:006A030C,18a:002003B9,16:03B903080301,20:03C503080301,1d7:05650582,190f:00680331,1:00740308,1:0077030A,1:0079030A,1:006102BE,b6:03C50313,2:03C503130300,2:03C503130301,2:03C503130342,2a:1F0003B9,1:1F0103B9,1:1F0203B9,1:1F0303B9,1:1F0403B9,1:1F0503B9,1:1F0603B9,1:1F0703B9,1:1F0003B9,1:1F0103B9,1:1F0203B9,1:1F0303B9,1:1F0403B9,1:1F0503B9,1:1F0603B9,1:1F0703B9,1:1F2003B9,1:1F2103B9,1:1F2203B9,1:1F2303B9,1:1F2403B9,1:1F2503B9,1:1F2603B9,1:1F2703B9,1:1F2003B9,1:1F2103B9,1:1F2203B9,1:1F2303B9,1:1F2403B9,1:1F2503B9,1:1F2603B9,1:1F2703B9,1:1F6003B9,1:1F6103B9,1:1F6203B9,1:1F6303B9,1:1F6403B9,1:1F6503B9,1:1F6603B9,1:1F6703B9,1:1F6003B9,1:1F6103B9,1:1F6203B9,1:1F6303B9,1:1F6403B9,1:1F6503B9,1:1F6603B9,1:1F6703B9,3:1F7003B9,1:03B103B9,1:03AC03B9,2:03B10342,1:03B1034203B9,5:03B103B9,6:1F7403B9,1:03B703B9,1:03AE03B9,2:03B70342,1:03B7034203B9,5:03B703B9,6:03B903080300,1:03B903080301,3:03B90342,1:03B903080342,b:03C503080300,1:03C503080301,1:03C10313,2:03C50342,1:03C503080342,b:1F7C03B9,1:03C903B9,1:03CE03B9,2:03C90342,1:03C9034203B9,5:03C903B9,ac:00720073,5b:00B00063,6:00B00066,d:006E006F,a:0073006D,1:00740065006C,1:0074006D,124f:006800700061,2:00610075,2:006F0076,b:00700061,1:006E0061,1:03BC0061,1:006D0061,1:006B0061,1:006B0062,1:006D0062,1:00670062,3:00700066,1:006E0066,1:03BC0066,4:0068007A,1:006B0068007A,1:006D0068007A,1:00670068007A,1:00740068007A,15:00700061,1:006B00700061,1:006D00700061,1:006700700061,8:00700076,1:006E0076,1:03BC0076,1:006D0076,1:006B0076,1:006D0076,1:00700077,1:006E0077,1:03BC0077,1:006D0077,1:006B0077,1:006D0077,1:006B03C9,1:006D03C9,2:00620071,3:00632215006B0067,1:0063006F002E,1:00640062,1:00670079,2:00680070,2:006B006B,1:006B006D,9:00700068,2:00700070006D,1:00700072,2:00730076,1:00770062,c723:00660066,1:00660069,1:0066006C,1:006600660069,1:00660066006C,1:00730074,1:00730074,d:05740576,1:05740565,1:0574056B,1:057E0576,1:0574056D", bytes2);
 const Table_C_ranges = createRangeTable("80-20,2a0-,39c,32,f71,18e,7f2-f,19-7,30-4,7-5,f81-b,5,a800-20ff,4d1-1f,110,fa-6,d174-7,2e84-,ffff-,ffff-,ffff-,ffff-,ffff-,ffff-,ffff-,ffff-,ffff-,ffff-,ffff-,ffff-,2,1f-5f,ff7f-20001");
+
 function flatten(values) {
   return values.reduce((accum, value) => {
     value.forEach(value => {
@@ -9145,80 +10129,99 @@ function flatten(values) {
     return accum;
   }, []);
 }
+
 function _nameprepTableA1(codepoint) {
   return !!matchMap(codepoint, Table_A_1_ranges);
 }
+
 function _nameprepTableB2(codepoint) {
   let range = matchMap(codepoint, Table_B_2_ranges);
+
   if (range) {
     return [codepoint + range.s];
   }
+
   let codes = Table_B_2_lut_abs[codepoint];
+
   if (codes) {
     return codes;
   }
+
   let shift = Table_B_2_lut_rel[codepoint];
+
   if (shift) {
     return [codepoint + shift[0]];
   }
+
   let complex = Table_B_2_complex[codepoint];
+
   if (complex) {
     return complex;
   }
+
   return null;
 }
+
 function _nameprepTableC(codepoint) {
   return !!matchMap(codepoint, Table_C_ranges);
 }
+
 function nameprep(value) {
   // This allows platforms with incomplete normalize to bypass
   // it for very basic names which the built-in toLowerCase
   // will certainly handle correctly
   if (value.match(/^[a-z0-9-]*$/i) && value.length <= 59) {
     return value.toLowerCase();
-  }
-  // Get the code points (keeping the current normalization)
+  } // Get the code points (keeping the current normalization)
+
+
   let codes = (0, _utf.toUtf8CodePoints)(value);
   codes = flatten(codes.map(code => {
     // Substitute Table B.1 (Maps to Nothing)
     if (Table_B_1_flags.indexOf(code) >= 0) {
       return [];
     }
+
     if (code >= 0xfe00 && code <= 0xfe0f) {
       return [];
-    }
-    // Substitute Table B.2 (Case Folding)
+    } // Substitute Table B.2 (Case Folding)
+
+
     let codesTableB2 = _nameprepTableB2(code);
+
     if (codesTableB2) {
       return codesTableB2;
-    }
-    // No Substitution
+    } // No Substitution
+
+
     return [code];
-  }));
-  // Normalize using form KC
-  codes = (0, _utf.toUtf8CodePoints)((0, _utf._toUtf8String)(codes), _utf.UnicodeNormalizationForm.NFKC);
-  // Prohibit Tables C.1.2, C.2.2, C.3, C.4, C.5, C.6, C.7, C.8, C.9
+  })); // Normalize using form KC
+
+  codes = (0, _utf.toUtf8CodePoints)((0, _utf._toUtf8String)(codes), _utf.UnicodeNormalizationForm.NFKC); // Prohibit Tables C.1.2, C.2.2, C.3, C.4, C.5, C.6, C.7, C.8, C.9
+
   codes.forEach(code => {
     if (_nameprepTableC(code)) {
       throw new Error("STRINGPREP_CONTAINS_PROHIBITED");
     }
-  });
-  // Prohibit Unassigned Code Points (Table A.1)
+  }); // Prohibit Unassigned Code Points (Table A.1)
+
   codes.forEach(code => {
     if (_nameprepTableA1(code)) {
       throw new Error("STRINGPREP_CONTAINS_UNASSIGNED");
     }
-  });
-  // IDNA extras
-  let name = (0, _utf._toUtf8String)(codes);
-  // IDNA: 4.2.3.1
+  }); // IDNA extras
+
+  let name = (0, _utf._toUtf8String)(codes); // IDNA: 4.2.3.1
+
   if (name.substring(0, 1) === "-" || name.substring(2, 4) === "--" || name.substring(name.length - 1) === "-") {
     throw new Error("invalid hyphen");
-  }
-  // IDNA: 4.2.4
+  } // IDNA: 4.2.4
+
+
   if (name.length > 63) {
     throw new Error("too long");
   }
+
   return name;
 }
 },{"./utf8":"pSQg"}],"ZW9k":[function(require,module,exports) {
@@ -9287,8 +10290,11 @@ Object.defineProperty(exports, "toUtf8String", {
     return _utf.toUtf8String;
   }
 });
+
 var _bytes = require("./bytes32");
+
 var _idna = require("./idna");
+
 var _utf = require("./utf8");
 },{"./bytes32":"BjLV","./idna":"rPEv","./utf8":"pSQg"}],"oqXo":[function(require,module,exports) {
 "use strict";
@@ -9297,22 +10303,30 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.StringCoder = void 0;
+
 var _strings = require("@ethersproject/strings");
+
 var _bytes = require("./bytes");
+
 class StringCoder extends _bytes.DynamicBytesCoder {
   constructor(localName) {
     super("string", localName);
   }
+
   defaultValue() {
     return "";
   }
+
   encode(writer, value) {
     return super.encode(writer, (0, _strings.toUtf8Bytes)(value));
   }
+
   decode(reader) {
     return (0, _strings.toUtf8String)(super.decode(reader));
   }
+
 }
+
 exports.StringCoder = StringCoder;
 },{"@ethersproject/strings":"ZW9k","./bytes":"qpiR"}],"kQt8":[function(require,module,exports) {
 "use strict";
@@ -9321,8 +10335,11 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.TupleCoder = void 0;
+
 var _abstractCoder = require("./abstract-coder");
+
 var _array = require("./array");
+
 class TupleCoder extends _abstractCoder.Coder {
   constructor(coders, localName) {
     let dynamic = false;
@@ -9331,136 +10348,186 @@ class TupleCoder extends _abstractCoder.Coder {
       if (coder.dynamic) {
         dynamic = true;
       }
+
       types.push(coder.type);
     });
     const type = "tuple(" + types.join(",") + ")";
     super("tuple", type, localName, dynamic);
     this.coders = coders;
   }
+
   defaultValue() {
     const values = [];
     this.coders.forEach(coder => {
       values.push(coder.defaultValue());
-    });
-    // We only output named properties for uniquely named coders
+    }); // We only output named properties for uniquely named coders
+
     const uniqueNames = this.coders.reduce((accum, coder) => {
       const name = coder.localName;
+
       if (name) {
         if (!accum[name]) {
           accum[name] = 0;
         }
+
         accum[name]++;
       }
+
       return accum;
-    }, {});
-    // Add named values
+    }, {}); // Add named values
+
     this.coders.forEach((coder, index) => {
       let name = coder.localName;
+
       if (!name || uniqueNames[name] !== 1) {
         return;
       }
+
       if (name === "length") {
         name = "_length";
       }
+
       if (values[name] != null) {
         return;
       }
+
       values[name] = values[index];
     });
     return Object.freeze(values);
   }
+
   encode(writer, value) {
     return (0, _array.pack)(writer, this.coders, value);
   }
+
   decode(reader) {
     return reader.coerce(this.name, (0, _array.unpack)(reader, this.coders));
   }
+
 }
+
 exports.TupleCoder = TupleCoder;
 },{"./abstract-coder":"T2f8","./array":"qwJ9"}],"F7PL":[function(require,module,exports) {
-"use strict";
+"use strict"; // See: https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI
 
-// See: https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.defaultAbiCoder = exports.AbiCoder = void 0;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _properties = require("@ethersproject/properties");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var _abstractCoder = require("./coders/abstract-coder");
+
 var _address = require("./coders/address");
+
 var _array = require("./coders/array");
+
 var _boolean = require("./coders/boolean");
+
 var _bytes2 = require("./coders/bytes");
+
 var _fixedBytes = require("./coders/fixed-bytes");
+
 var _null = require("./coders/null");
+
 var _number = require("./coders/number");
+
 var _string = require("./coders/string");
+
 var _tuple = require("./coders/tuple");
+
 var _fragments = require("./fragments");
+
 const logger = new _logger.Logger(_version.version);
 const paramTypeBytes = new RegExp(/^bytes([0-9]*)$/);
 const paramTypeNumber = new RegExp(/^(u?int)([0-9]*)$/);
+
 class AbiCoder {
   constructor(coerceFunc) {
     logger.checkNew(new.target, AbiCoder);
     (0, _properties.defineReadOnly)(this, "coerceFunc", coerceFunc || null);
   }
+
   _getCoder(param) {
     switch (param.baseType) {
       case "address":
         return new _address.AddressCoder(param.name);
+
       case "bool":
         return new _boolean.BooleanCoder(param.name);
+
       case "string":
         return new _string.StringCoder(param.name);
+
       case "bytes":
         return new _bytes2.BytesCoder(param.name);
+
       case "array":
         return new _array.ArrayCoder(this._getCoder(param.arrayChildren), param.arrayLength, param.name);
+
       case "tuple":
         return new _tuple.TupleCoder((param.components || []).map(component => {
           return this._getCoder(component);
         }), param.name);
+
       case "":
         return new _null.NullCoder(param.name);
-    }
-    // u?int[0-9]*
+    } // u?int[0-9]*
+
+
     let match = param.type.match(paramTypeNumber);
+
     if (match) {
       let size = parseInt(match[2] || "256");
+
       if (size === 0 || size > 256 || size % 8 !== 0) {
         logger.throwArgumentError("invalid " + match[1] + " bit length", "param", param);
       }
+
       return new _number.NumberCoder(size / 8, match[1] === "int", param.name);
-    }
-    // bytes[0-9]+
+    } // bytes[0-9]+
+
+
     match = param.type.match(paramTypeBytes);
+
     if (match) {
       let size = parseInt(match[1]);
+
       if (size === 0 || size > 32) {
         logger.throwArgumentError("invalid bytes length", "param", param);
       }
+
       return new _fixedBytes.FixedBytesCoder(size, param.name);
     }
+
     return logger.throwArgumentError("invalid type", "type", param.type);
   }
+
   _getWordSize() {
     return 32;
   }
+
   _getReader(data, allowLoose) {
     return new _abstractCoder.Reader(data, this._getWordSize(), this.coerceFunc, allowLoose);
   }
+
   _getWriter() {
     return new _abstractCoder.Writer(this._getWordSize());
   }
+
   getDefaultValue(types) {
     const coders = types.map(type => this._getCoder(_fragments.ParamType.from(type)));
     const coder = new _tuple.TupleCoder(coders, "_");
     return coder.defaultValue();
   }
+
   encode(types, values) {
     if (types.length !== values.length) {
       logger.throwError("types/values length mismatch", _logger.Logger.errors.INVALID_ARGUMENT, {
@@ -9474,18 +10541,24 @@ class AbiCoder {
         }
       });
     }
+
     const coders = types.map(type => this._getCoder(_fragments.ParamType.from(type)));
     const coder = new _tuple.TupleCoder(coders, "_");
+
     const writer = this._getWriter();
+
     coder.encode(writer, values);
     return writer.data;
   }
+
   decode(types, data, loose) {
     const coders = types.map(type => this._getCoder(_fragments.ParamType.from(type)));
     const coder = new _tuple.TupleCoder(coders, "_");
     return coder.decode(this._getReader((0, _bytes.arrayify)(data), loose));
   }
+
 }
+
 exports.AbiCoder = AbiCoder;
 const defaultAbiCoder = new AbiCoder();
 exports.defaultAbiCoder = defaultAbiCoder;
@@ -9496,8 +10569,11 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.id = id;
+
 var _keccak = require("@ethersproject/keccak256");
+
 var _strings = require("@ethersproject/strings");
+
 function id(text) {
   return (0, _keccak.keccak256)((0, _strings.toUtf8Bytes)(text));
 }
@@ -9518,43 +10594,59 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.isValidName = isValidName;
 exports.namehash = namehash;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _strings = require("@ethersproject/strings");
+
 var _keccak = require("@ethersproject/keccak256");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 const logger = new _logger.Logger(_version.version);
 const Zeros = new Uint8Array(32);
 Zeros.fill(0);
 const Partition = new RegExp("^((.*)\\.)?([^.]+)$");
+
 function isValidName(name) {
   try {
     const comps = name.split(".");
+
     for (let i = 0; i < comps.length; i++) {
       if ((0, _strings.nameprep)(comps[i]).length === 0) {
         throw new Error("empty");
       }
     }
+
     return true;
   } catch (error) {}
+
   return false;
 }
+
 function namehash(name) {
   /* istanbul ignore if */
   if (typeof name !== "string") {
     logger.throwArgumentError("invalid ENS name; not a string", "name", name);
   }
+
   let current = name;
   let result = Zeros;
+
   while (current.length) {
     const partition = current.match(Partition);
+
     if (partition == null || partition[2] === "") {
       logger.throwArgumentError("invalid ENS address; missing component", "name", name);
     }
+
     const label = (0, _strings.toUtf8Bytes)((0, _strings.nameprep)(partition[3]));
     result = (0, _keccak.keccak256)((0, _bytes.concat)([result, (0, _keccak.keccak256)(label)]));
     current = partition[2] || "";
   }
+
   return (0, _bytes.hexlify)(result);
 }
 },{"@ethersproject/bytes":"aqkS","@ethersproject/strings":"ZW9k","@ethersproject/keccak256":"g6Gq","@ethersproject/logger":"kMNH","./_version":"NOgc"}],"iZVz":[function(require,module,exports) {
@@ -9565,15 +10657,21 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.hashMessage = hashMessage;
 exports.messagePrefix = void 0;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _keccak = require("@ethersproject/keccak256");
+
 var _strings = require("@ethersproject/strings");
+
 const messagePrefix = "\x19Ethereum Signed Message:\n";
 exports.messagePrefix = messagePrefix;
+
 function hashMessage(message) {
   if (typeof message === "string") {
     message = (0, _strings.toUtf8Bytes)(message);
   }
+
   return (0, _keccak.keccak256)((0, _bytes.concat)([(0, _strings.toUtf8Bytes)(messagePrefix), (0, _strings.toUtf8Bytes)(String(message.length)), message]));
 }
 },{"@ethersproject/bytes":"aqkS","@ethersproject/keccak256":"g6Gq","@ethersproject/strings":"ZW9k"}],"fZpo":[function(require,module,exports) {
@@ -9583,20 +10681,30 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.TypedDataEncoder = void 0;
+
 var _address = require("@ethersproject/address");
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _keccak = require("@ethersproject/keccak256");
+
 var _properties = require("@ethersproject/properties");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var _id = require("./id");
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -9605,6 +10713,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -9612,27 +10721,38 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 const logger = new _logger.Logger(_version.version);
 const padding = new Uint8Array(32);
 padding.fill(0);
+
 const NegativeOne = _bignumber.BigNumber.from(-1);
+
 const Zero = _bignumber.BigNumber.from(0);
+
 const One = _bignumber.BigNumber.from(1);
+
 const MaxUint256 = _bignumber.BigNumber.from("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
 function hexPadRight(value) {
   const bytes = (0, _bytes.arrayify)(value);
   const padOffset = bytes.length % 32;
+
   if (padOffset) {
     return (0, _bytes.hexConcat)([bytes, padding.slice(padOffset)]);
   }
+
   return (0, _bytes.hexlify)(bytes);
 }
+
 const hexTrue = (0, _bytes.hexZeroPad)(One.toHexString(), 32);
 const hexFalse = (0, _bytes.hexZeroPad)(Zero.toHexString(), 32);
 const domainFieldTypes = {
@@ -9643,14 +10763,17 @@ const domainFieldTypes = {
   salt: "bytes32"
 };
 const domainFieldNames = ["name", "version", "chainId", "verifyingContract", "salt"];
+
 function checkString(key) {
   return function (value) {
     if (typeof value !== "string") {
       logger.throwArgumentError(`invalid domain value for ${JSON.stringify(key)}`, `domain.${key}`, value);
     }
+
     return value;
   };
 }
+
 const domainChecks = {
   name: checkString("name"),
   version: checkString("version"),
@@ -9658,105 +10781,129 @@ const domainChecks = {
     try {
       return _bignumber.BigNumber.from(value).toString();
     } catch (error) {}
+
     return logger.throwArgumentError(`invalid domain value for "chainId"`, "domain.chainId", value);
   },
   verifyingContract: function (value) {
     try {
       return (0, _address.getAddress)(value).toLowerCase();
     } catch (error) {}
+
     return logger.throwArgumentError(`invalid domain value "verifyingContract"`, "domain.verifyingContract", value);
   },
   salt: function (value) {
     try {
       const bytes = (0, _bytes.arrayify)(value);
+
       if (bytes.length !== 32) {
         throw new Error("bad length");
       }
+
       return (0, _bytes.hexlify)(bytes);
     } catch (error) {}
+
     return logger.throwArgumentError(`invalid domain value "salt"`, "domain.salt", value);
   }
 };
+
 function getBaseEncoder(type) {
   // intXX and uintXX
   {
     const match = type.match(/^(u?)int(\d*)$/);
+
     if (match) {
       const signed = match[1] === "";
       const width = parseInt(match[2] || "256");
+
       if (width % 8 !== 0 || width > 256 || match[2] && match[2] !== String(width)) {
         logger.throwArgumentError("invalid numeric width", "type", type);
       }
+
       const boundsUpper = MaxUint256.mask(signed ? width - 1 : width);
       const boundsLower = signed ? boundsUpper.add(One).mul(NegativeOne) : Zero;
       return function (value) {
         const v = _bignumber.BigNumber.from(value);
+
         if (v.lt(boundsLower) || v.gt(boundsUpper)) {
           logger.throwArgumentError(`value out-of-bounds for ${type}`, "value", value);
         }
+
         return (0, _bytes.hexZeroPad)(v.toTwos(256).toHexString(), 32);
       };
     }
-  }
-  // bytesXX
+  } // bytesXX
+
   {
     const match = type.match(/^bytes(\d+)$/);
+
     if (match) {
       const width = parseInt(match[1]);
+
       if (width === 0 || width > 32 || match[1] !== String(width)) {
         logger.throwArgumentError("invalid bytes width", "type", type);
       }
+
       return function (value) {
         const bytes = (0, _bytes.arrayify)(value);
+
         if (bytes.length !== width) {
           logger.throwArgumentError(`invalid length for ${type}`, "value", value);
         }
+
         return hexPadRight(value);
       };
     }
   }
+
   switch (type) {
     case "address":
       return function (value) {
         return (0, _bytes.hexZeroPad)((0, _address.getAddress)(value), 32);
       };
+
     case "bool":
       return function (value) {
         return !value ? hexFalse : hexTrue;
       };
+
     case "bytes":
       return function (value) {
         return (0, _keccak.keccak256)(value);
       };
+
     case "string":
       return function (value) {
         return (0, _id.id)(value);
       };
   }
+
   return null;
 }
+
 function encodeType(name, fields) {
   return `${name}(${fields.map(({
     name,
     type
   }) => type + " " + name).join(",")})`;
 }
+
 class TypedDataEncoder {
   constructor(types) {
     (0, _properties.defineReadOnly)(this, "types", Object.freeze((0, _properties.deepCopy)(types)));
     (0, _properties.defineReadOnly)(this, "_encoderCache", {});
-    (0, _properties.defineReadOnly)(this, "_types", {});
-    // Link struct types to their direct child structs
-    const links = {};
-    // Link structs to structs which contain them as a child
-    const parents = {};
-    // Link all subtypes within a given struct
+    (0, _properties.defineReadOnly)(this, "_types", {}); // Link struct types to their direct child structs
+
+    const links = {}; // Link structs to structs which contain them as a child
+
+    const parents = {}; // Link all subtypes within a given struct
+
     const subtypes = {};
     Object.keys(types).forEach(type => {
       links[type] = {};
       parents[type] = [];
       subtypes[type] = {};
     });
+
     for (const name in types) {
       const uniqueNames = {};
       types[name].forEach(field => {
@@ -9764,77 +10911,95 @@ class TypedDataEncoder {
         if (uniqueNames[field.name]) {
           logger.throwArgumentError(`duplicate variable name ${JSON.stringify(field.name)} in ${JSON.stringify(name)}`, "types", types);
         }
-        uniqueNames[field.name] = true;
-        // Get the base type (drop any array specifiers)
+
+        uniqueNames[field.name] = true; // Get the base type (drop any array specifiers)
+
         const baseType = field.type.match(/^([^\x5b]*)(\x5b|$)/)[1];
+
         if (baseType === name) {
           logger.throwArgumentError(`circular type reference to ${JSON.stringify(baseType)}`, "types", types);
-        }
-        // Is this a base encoding type?
+        } // Is this a base encoding type?
+
+
         const encoder = getBaseEncoder(baseType);
+
         if (encoder) {
           return;
         }
+
         if (!parents[baseType]) {
           logger.throwArgumentError(`unknown type ${JSON.stringify(baseType)}`, "types", types);
-        }
-        // Add linkage
+        } // Add linkage
+
+
         parents[baseType].push(name);
         links[name][baseType] = true;
       });
-    }
-    // Deduce the primary type
+    } // Deduce the primary type
+
+
     const primaryTypes = Object.keys(parents).filter(n => parents[n].length === 0);
+
     if (primaryTypes.length === 0) {
       logger.throwArgumentError("missing primary type", "types", types);
     } else if (primaryTypes.length > 1) {
       logger.throwArgumentError(`ambiguous primary types or unused types: ${primaryTypes.map(t => JSON.stringify(t)).join(", ")}`, "types", types);
     }
-    (0, _properties.defineReadOnly)(this, "primaryType", primaryTypes[0]);
-    // Check for circular type references
+
+    (0, _properties.defineReadOnly)(this, "primaryType", primaryTypes[0]); // Check for circular type references
+
     function checkCircular(type, found) {
       if (found[type]) {
         logger.throwArgumentError(`circular type reference to ${JSON.stringify(type)}`, "types", types);
       }
+
       found[type] = true;
       Object.keys(links[type]).forEach(child => {
         if (!parents[child]) {
           return;
-        }
-        // Recursively check children
-        checkCircular(child, found);
-        // Mark all ancestors as having this decendant
+        } // Recursively check children
+
+
+        checkCircular(child, found); // Mark all ancestors as having this decendant
+
         Object.keys(found).forEach(subtype => {
           subtypes[subtype][child] = true;
         });
       });
       delete found[type];
     }
-    checkCircular(this.primaryType, {});
-    // Compute each fully describe type
+
+    checkCircular(this.primaryType, {}); // Compute each fully describe type
+
     for (const name in subtypes) {
       const st = Object.keys(subtypes[name]);
       st.sort();
       this._types[name] = encodeType(name, types[name]) + st.map(t => encodeType(t, types[t])).join("");
     }
   }
+
   getEncoder(type) {
     let encoder = this._encoderCache[type];
+
     if (!encoder) {
       encoder = this._encoderCache[type] = this._getEncoder(type);
     }
+
     return encoder;
   }
+
   _getEncoder(type) {
     // Basic encoder type (address, bool, uint256, etc)
     {
       const encoder = getBaseEncoder(type);
+
       if (encoder) {
         return encoder;
       }
-    }
-    // Array
+    } // Array
+
     const match = type.match(/^(.*)(\x5b(\d*)\x5d)$/);
+
     if (match) {
       const subtype = match[1];
       const subEncoder = this.getEncoder(subtype);
@@ -9843,15 +11008,20 @@ class TypedDataEncoder {
         if (length >= 0 && value.length !== length) {
           logger.throwArgumentError("array length mismatch; expected length ${ arrayLength }", "value", value);
         }
+
         let result = value.map(subEncoder);
+
         if (this._types[subtype]) {
           result = result.map(_keccak.keccak256);
         }
+
         return (0, _keccak.keccak256)((0, _bytes.hexConcat)(result));
       };
-    }
-    // Struct
+    } // Struct
+
+
     const fields = this.types[type];
+
     if (fields) {
       const encodedType = (0, _id.id)(this._types[type]);
       return value => {
@@ -9860,56 +11030,73 @@ class TypedDataEncoder {
           type
         }) => {
           const result = this.getEncoder(type)(value[name]);
+
           if (this._types[type]) {
             return (0, _keccak.keccak256)(result);
           }
+
           return result;
         });
         values.unshift(encodedType);
         return (0, _bytes.hexConcat)(values);
       };
     }
+
     return logger.throwArgumentError(`unknown type: ${type}`, "type", type);
   }
+
   encodeType(name) {
     const result = this._types[name];
+
     if (!result) {
       logger.throwArgumentError(`unknown type: ${JSON.stringify(name)}`, "name", name);
     }
+
     return result;
   }
+
   encodeData(type, value) {
     return this.getEncoder(type)(value);
   }
+
   hashStruct(name, value) {
     return (0, _keccak.keccak256)(this.encodeData(name, value));
   }
+
   encode(value) {
     return this.encodeData(this.primaryType, value);
   }
+
   hash(value) {
     return this.hashStruct(this.primaryType, value);
   }
+
   _visit(type, value, callback) {
     // Basic encoder type (address, bool, uint256, etc)
     {
       const encoder = getBaseEncoder(type);
+
       if (encoder) {
         return callback(type, value);
       }
-    }
-    // Array
+    } // Array
+
     const match = type.match(/^(.*)(\x5b(\d*)\x5d)$/);
+
     if (match) {
       const subtype = match[1];
       const length = parseInt(match[3]);
+
       if (length >= 0 && value.length !== length) {
         logger.throwArgumentError("array length mismatch; expected length ${ arrayLength }", "value", value);
       }
+
       return value.map(v => this._visit(subtype, v, callback));
-    }
-    // Struct
+    } // Struct
+
+
     const fields = this.types[type];
+
     if (fields) {
       return fields.reduce((accum, {
         name,
@@ -9919,32 +11106,42 @@ class TypedDataEncoder {
         return accum;
       }, {});
     }
+
     return logger.throwArgumentError(`unknown type: ${type}`, "type", type);
   }
+
   visit(value, callback) {
     return this._visit(this.primaryType, value, callback);
   }
+
   static from(types) {
     return new TypedDataEncoder(types);
   }
+
   static getPrimaryType(types) {
     return TypedDataEncoder.from(types).primaryType;
   }
+
   static hashStruct(name, types, value) {
     return TypedDataEncoder.from(types).hashStruct(name, value);
   }
+
   static hashDomain(domain) {
     const domainFields = [];
+
     for (const name in domain) {
       const type = domainFieldTypes[name];
+
       if (!type) {
         logger.throwArgumentError(`invalid typed-data domain key: ${JSON.stringify(name)}`, "domain", domain);
       }
+
       domainFields.push({
         name,
         type
       });
     }
+
     domainFields.sort((a, b) => {
       return domainFieldNames.indexOf(a.name) - domainFieldNames.indexOf(b.name);
     });
@@ -9952,45 +11149,53 @@ class TypedDataEncoder {
       EIP712Domain: domainFields
     }, domain);
   }
+
   static encode(domain, types, value) {
     return (0, _bytes.hexConcat)(["0x1901", TypedDataEncoder.hashDomain(domain), TypedDataEncoder.from(types).hash(value)]);
   }
+
   static hash(domain, types, value) {
     return (0, _keccak.keccak256)(TypedDataEncoder.encode(domain, types, value));
-  }
-  // Replaces all address types with ENS names with their looked up address
+  } // Replaces all address types with ENS names with their looked up address
+
+
   static resolveNames(domain, types, value, resolveName) {
     return __awaiter(this, void 0, void 0, function* () {
       // Make a copy to isolate it from the object passed in
-      domain = (0, _properties.shallowCopy)(domain);
-      // Look up all ENS names
-      const ensCache = {};
-      // Do we need to look up the domain's verifyingContract?
+      domain = (0, _properties.shallowCopy)(domain); // Look up all ENS names
+
+      const ensCache = {}; // Do we need to look up the domain's verifyingContract?
+
       if (domain.verifyingContract && !(0, _bytes.isHexString)(domain.verifyingContract, 20)) {
         ensCache[domain.verifyingContract] = "0x";
-      }
-      // We are going to use the encoder to visit all the base values
-      const encoder = TypedDataEncoder.from(types);
-      // Get a list of all the addresses
+      } // We are going to use the encoder to visit all the base values
+
+
+      const encoder = TypedDataEncoder.from(types); // Get a list of all the addresses
+
       encoder.visit(value, (type, value) => {
         if (type === "address" && !(0, _bytes.isHexString)(value, 20)) {
           ensCache[value] = "0x";
         }
+
         return value;
-      });
-      // Lookup each name
+      }); // Lookup each name
+
       for (const name in ensCache) {
         ensCache[name] = yield resolveName(name);
-      }
-      // Replace the domain verifyingContract if needed
+      } // Replace the domain verifyingContract if needed
+
+
       if (domain.verifyingContract && ensCache[domain.verifyingContract]) {
         domain.verifyingContract = ensCache[domain.verifyingContract];
-      }
-      // Replace all ENS names with their address
+      } // Replace all ENS names with their address
+
+
       value = encoder.visit(value, (type, value) => {
         if (type === "address" && ensCache[value]) {
           return ensCache[value];
         }
+
         return value;
       });
       return {
@@ -9999,17 +11204,20 @@ class TypedDataEncoder {
       };
     });
   }
+
   static getPayload(domain, types, value) {
     // Validate the domain fields
-    TypedDataEncoder.hashDomain(domain);
-    // Derive the EIP712Domain Struct reference type
+    TypedDataEncoder.hashDomain(domain); // Derive the EIP712Domain Struct reference type
+
     const domainValues = {};
     const domainTypes = [];
     domainFieldNames.forEach(name => {
       const value = domain[name];
+
       if (value == null) {
         return;
       }
+
       domainValues[name] = domainChecks[name](value);
       domainTypes.push({
         name,
@@ -10018,12 +11226,14 @@ class TypedDataEncoder {
     });
     const encoder = TypedDataEncoder.from(types);
     const typesWithDomain = (0, _properties.shallowCopy)(types);
+
     if (typesWithDomain.EIP712Domain) {
       logger.throwArgumentError("types must not contain EIP712Domain type", "types.EIP712Domain", types);
     } else {
       typesWithDomain.EIP712Domain = domainTypes;
-    }
-    // Validate the data structures and types
+    } // Validate the data structures and types
+
+
     encoder.encode(value);
     return {
       types: typesWithDomain,
@@ -10033,27 +11243,35 @@ class TypedDataEncoder {
         // bytes
         if (type.match(/^bytes(\d*)/)) {
           return (0, _bytes.hexlify)((0, _bytes.arrayify)(value));
-        }
-        // uint or int
+        } // uint or int
+
+
         if (type.match(/^u?int/)) {
           return _bignumber.BigNumber.from(value).toString();
         }
+
         switch (type) {
           case "address":
             return value.toLowerCase();
+
           case "bool":
             return !!value;
+
           case "string":
             if (typeof value !== "string") {
               logger.throwArgumentError(`invalid string`, "value", value);
             }
+
             return value;
         }
+
         return logger.throwArgumentError("unsupported type", "type", type);
       })
     };
   }
+
 }
+
 exports.TypedDataEncoder = TypedDataEncoder;
 },{"@ethersproject/address":"a1wm","@ethersproject/bignumber":"efJK","@ethersproject/bytes":"aqkS","@ethersproject/keccak256":"g6Gq","@ethersproject/properties":"JuuX","@ethersproject/logger":"kMNH","./_version":"NOgc","./id":"phDg"}],"eHxR":[function(require,module,exports) {
 "use strict";
@@ -10097,9 +11315,13 @@ Object.defineProperty(exports, "namehash", {
     return _namehash.namehash;
   }
 });
+
 var _id = require("./id");
+
 var _namehash = require("./namehash");
+
 var _message = require("./message");
+
 var _typedData = require("./typed-data");
 },{"./id":"phDg","./namehash":"lXVe","./message":"iZVz","./typed-data":"fZpo"}],"OSBN":[function(require,module,exports) {
 "use strict";
@@ -10114,29 +11336,50 @@ Object.defineProperty(exports, "checkResultErrors", {
     return _abstractCoder.checkResultErrors;
   }
 });
+
 var _address = require("@ethersproject/address");
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _hash = require("@ethersproject/hash");
+
 var _keccak = require("@ethersproject/keccak256");
+
 var _properties = require("@ethersproject/properties");
+
 var _abiCoder = require("./abi-coder");
+
 var _abstractCoder = require("./coders/abstract-coder");
+
 var _fragments = require("./fragments");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 const logger = new _logger.Logger(_version.version);
+
 class LogDescription extends _properties.Description {}
+
 exports.LogDescription = LogDescription;
+
 class TransactionDescription extends _properties.Description {}
+
 exports.TransactionDescription = TransactionDescription;
+
 class ErrorDescription extends _properties.Description {}
+
 exports.ErrorDescription = ErrorDescription;
+
 class Indexed extends _properties.Description {
   static isIndexed(value) {
     return !!(value && value._isIndexed);
   }
+
 }
+
 exports.Indexed = Indexed;
 const BuiltinErrors = {
   "0x08c379a0": {
@@ -10151,6 +11394,7 @@ const BuiltinErrors = {
     inputs: ["uint256"]
   }
 };
+
 function wrapAccessError(property, error) {
   const wrap = new Error(`deferred error during ABI decoding triggered accessing ${property}`);
   wrap.error = error;
@@ -10169,15 +11413,19 @@ function checkNames(fragment: Fragment, type: "input" | "output", params: Array<
     }, <{ [ name: string ]: boolean }>{ });
 }
 */
+
+
 class Interface {
   constructor(fragments) {
     logger.checkNew(new.target, Interface);
     let abi = [];
+
     if (typeof fragments === "string") {
       abi = JSON.parse(fragments);
     } else {
       abi = fragments;
     }
+
     (0, _properties.defineReadOnly)(this, "fragments", abi.map(fragment => {
       return _fragments.Fragment.from(fragment);
     }).filter(fragment => fragment != null));
@@ -10185,78 +11433,97 @@ class Interface {
     (0, _properties.defineReadOnly)(this, "functions", {});
     (0, _properties.defineReadOnly)(this, "errors", {});
     (0, _properties.defineReadOnly)(this, "events", {});
-    (0, _properties.defineReadOnly)(this, "structs", {});
-    // Add all fragments by their signature
+    (0, _properties.defineReadOnly)(this, "structs", {}); // Add all fragments by their signature
+
     this.fragments.forEach(fragment => {
       let bucket = null;
+
       switch (fragment.type) {
         case "constructor":
           if (this.deploy) {
             logger.warn("duplicate definition - constructor");
             return;
-          }
-          //checkNames(fragment, "input", fragment.inputs);
+          } //checkNames(fragment, "input", fragment.inputs);
+
+
           (0, _properties.defineReadOnly)(this, "deploy", fragment);
           return;
+
         case "function":
           //checkNames(fragment, "input", fragment.inputs);
           //checkNames(fragment, "output", (<FunctionFragment>fragment).outputs);
           bucket = this.functions;
           break;
+
         case "event":
           //checkNames(fragment, "input", fragment.inputs);
           bucket = this.events;
           break;
+
         case "error":
           bucket = this.errors;
           break;
+
         default:
           return;
       }
+
       let signature = fragment.format();
+
       if (bucket[signature]) {
         logger.warn("duplicate definition - " + signature);
         return;
       }
+
       bucket[signature] = fragment;
-    });
-    // If we do not have a constructor add a default
+    }); // If we do not have a constructor add a default
+
     if (!this.deploy) {
       (0, _properties.defineReadOnly)(this, "deploy", _fragments.ConstructorFragment.from({
         payable: false,
         type: "constructor"
       }));
     }
+
     (0, _properties.defineReadOnly)(this, "_isInterface", true);
   }
+
   format(format) {
     if (!format) {
       format = _fragments.FormatTypes.full;
     }
+
     if (format === _fragments.FormatTypes.sighash) {
       logger.throwArgumentError("interface does not support formatting sighash", "format", format);
     }
-    const abi = this.fragments.map(fragment => fragment.format(format));
-    // We need to re-bundle the JSON fragments a bit
+
+    const abi = this.fragments.map(fragment => fragment.format(format)); // We need to re-bundle the JSON fragments a bit
+
     if (format === _fragments.FormatTypes.json) {
       return JSON.stringify(abi.map(j => JSON.parse(j)));
     }
+
     return abi;
-  }
-  // Sub-classes can override these to handle other blockchains
+  } // Sub-classes can override these to handle other blockchains
+
+
   static getAbiCoder() {
     return _abiCoder.defaultAbiCoder;
   }
+
   static getAddress(address) {
     return (0, _address.getAddress)(address);
   }
+
   static getSighash(fragment) {
     return (0, _bytes.hexDataSlice)((0, _hash.id)(fragment.format()), 0, 4);
   }
+
   static getEventTopic(eventFragment) {
     return (0, _hash.id)(eventFragment.format());
-  }
-  // Find a function definition by any means necessary (unless it is ambiguous)
+  } // Find a function definition by any means necessary (unless it is ambiguous)
+
+
   getFunction(nameOrSignatureOrSighash) {
     if ((0, _bytes.isHexString)(nameOrSignatureOrSighash)) {
       for (const name in this.functions) {
@@ -10264,86 +11531,119 @@ class Interface {
           return this.functions[name];
         }
       }
+
       logger.throwArgumentError("no matching function", "sighash", nameOrSignatureOrSighash);
-    }
-    // It is a bare name, look up the function (will return null if ambiguous)
+    } // It is a bare name, look up the function (will return null if ambiguous)
+
+
     if (nameOrSignatureOrSighash.indexOf("(") === -1) {
       const name = nameOrSignatureOrSighash.trim();
-      const matching = Object.keys(this.functions).filter(f => f.split("(" /* fix:) */)[0] === name);
+      const matching = Object.keys(this.functions).filter(f => f.split("("
+      /* fix:) */
+      )[0] === name);
+
       if (matching.length === 0) {
         logger.throwArgumentError("no matching function", "name", name);
       } else if (matching.length > 1) {
         logger.throwArgumentError("multiple matching functions", "name", name);
       }
+
       return this.functions[matching[0]];
-    }
-    // Normalize the signature and lookup the function
+    } // Normalize the signature and lookup the function
+
+
     const result = this.functions[_fragments.FunctionFragment.fromString(nameOrSignatureOrSighash).format()];
+
     if (!result) {
       logger.throwArgumentError("no matching function", "signature", nameOrSignatureOrSighash);
     }
+
     return result;
-  }
-  // Find an event definition by any means necessary (unless it is ambiguous)
+  } // Find an event definition by any means necessary (unless it is ambiguous)
+
+
   getEvent(nameOrSignatureOrTopic) {
     if ((0, _bytes.isHexString)(nameOrSignatureOrTopic)) {
       const topichash = nameOrSignatureOrTopic.toLowerCase();
+
       for (const name in this.events) {
         if (topichash === this.getEventTopic(name)) {
           return this.events[name];
         }
       }
+
       logger.throwArgumentError("no matching event", "topichash", topichash);
-    }
-    // It is a bare name, look up the function (will return null if ambiguous)
+    } // It is a bare name, look up the function (will return null if ambiguous)
+
+
     if (nameOrSignatureOrTopic.indexOf("(") === -1) {
       const name = nameOrSignatureOrTopic.trim();
-      const matching = Object.keys(this.events).filter(f => f.split("(" /* fix:) */)[0] === name);
+      const matching = Object.keys(this.events).filter(f => f.split("("
+      /* fix:) */
+      )[0] === name);
+
       if (matching.length === 0) {
         logger.throwArgumentError("no matching event", "name", name);
       } else if (matching.length > 1) {
         logger.throwArgumentError("multiple matching events", "name", name);
       }
+
       return this.events[matching[0]];
-    }
-    // Normalize the signature and lookup the function
+    } // Normalize the signature and lookup the function
+
+
     const result = this.events[_fragments.EventFragment.fromString(nameOrSignatureOrTopic).format()];
+
     if (!result) {
       logger.throwArgumentError("no matching event", "signature", nameOrSignatureOrTopic);
     }
+
     return result;
-  }
-  // Find a function definition by any means necessary (unless it is ambiguous)
+  } // Find a function definition by any means necessary (unless it is ambiguous)
+
+
   getError(nameOrSignatureOrSighash) {
     if ((0, _bytes.isHexString)(nameOrSignatureOrSighash)) {
       const getSighash = (0, _properties.getStatic)(this.constructor, "getSighash");
+
       for (const name in this.errors) {
         const error = this.errors[name];
+
         if (nameOrSignatureOrSighash === getSighash(error)) {
           return this.errors[name];
         }
       }
+
       logger.throwArgumentError("no matching error", "sighash", nameOrSignatureOrSighash);
-    }
-    // It is a bare name, look up the function (will return null if ambiguous)
+    } // It is a bare name, look up the function (will return null if ambiguous)
+
+
     if (nameOrSignatureOrSighash.indexOf("(") === -1) {
       const name = nameOrSignatureOrSighash.trim();
-      const matching = Object.keys(this.errors).filter(f => f.split("(" /* fix:) */)[0] === name);
+      const matching = Object.keys(this.errors).filter(f => f.split("("
+      /* fix:) */
+      )[0] === name);
+
       if (matching.length === 0) {
         logger.throwArgumentError("no matching error", "name", name);
       } else if (matching.length > 1) {
         logger.throwArgumentError("multiple matching errors", "name", name);
       }
+
       return this.errors[matching[0]];
-    }
-    // Normalize the signature and lookup the function
+    } // Normalize the signature and lookup the function
+
+
     const result = this.errors[_fragments.FunctionFragment.fromString(nameOrSignatureOrSighash).format()];
+
     if (!result) {
       logger.throwArgumentError("no matching error", "signature", nameOrSignatureOrSighash);
     }
+
     return result;
-  }
-  // Get the sighash (the bytes4 selector) used by Solidity to identify a function
+  } // Get the sighash (the bytes4 selector) used by Solidity to identify a function
+
+
   getSighash(fragment) {
     if (typeof fragment === "string") {
       try {
@@ -10356,82 +11656,107 @@ class Interface {
         }
       }
     }
+
     return (0, _properties.getStatic)(this.constructor, "getSighash")(fragment);
-  }
-  // Get the topic (the bytes32 hash) used by Solidity to identify an event
+  } // Get the topic (the bytes32 hash) used by Solidity to identify an event
+
+
   getEventTopic(eventFragment) {
     if (typeof eventFragment === "string") {
       eventFragment = this.getEvent(eventFragment);
     }
+
     return (0, _properties.getStatic)(this.constructor, "getEventTopic")(eventFragment);
   }
+
   _decodeParams(params, data) {
     return this._abiCoder.decode(params, data);
   }
+
   _encodeParams(params, values) {
     return this._abiCoder.encode(params, values);
   }
+
   encodeDeploy(values) {
     return this._encodeParams(this.deploy.inputs, values || []);
   }
+
   decodeErrorResult(fragment, data) {
     if (typeof fragment === "string") {
       fragment = this.getError(fragment);
     }
+
     const bytes = (0, _bytes.arrayify)(data);
+
     if ((0, _bytes.hexlify)(bytes.slice(0, 4)) !== this.getSighash(fragment)) {
       logger.throwArgumentError(`data signature does not match error ${fragment.name}.`, "data", (0, _bytes.hexlify)(bytes));
     }
+
     return this._decodeParams(fragment.inputs, bytes.slice(4));
   }
+
   encodeErrorResult(fragment, values) {
     if (typeof fragment === "string") {
       fragment = this.getError(fragment);
     }
+
     return (0, _bytes.hexlify)((0, _bytes.concat)([this.getSighash(fragment), this._encodeParams(fragment.inputs, values || [])]));
-  }
-  // Decode the data for a function call (e.g. tx.data)
+  } // Decode the data for a function call (e.g. tx.data)
+
+
   decodeFunctionData(functionFragment, data) {
     if (typeof functionFragment === "string") {
       functionFragment = this.getFunction(functionFragment);
     }
+
     const bytes = (0, _bytes.arrayify)(data);
+
     if ((0, _bytes.hexlify)(bytes.slice(0, 4)) !== this.getSighash(functionFragment)) {
       logger.throwArgumentError(`data signature does not match function ${functionFragment.name}.`, "data", (0, _bytes.hexlify)(bytes));
     }
+
     return this._decodeParams(functionFragment.inputs, bytes.slice(4));
-  }
-  // Encode the data for a function call (e.g. tx.data)
+  } // Encode the data for a function call (e.g. tx.data)
+
+
   encodeFunctionData(functionFragment, values) {
     if (typeof functionFragment === "string") {
       functionFragment = this.getFunction(functionFragment);
     }
+
     return (0, _bytes.hexlify)((0, _bytes.concat)([this.getSighash(functionFragment), this._encodeParams(functionFragment.inputs, values || [])]));
-  }
-  // Decode the result from a function call (e.g. from eth_call)
+  } // Decode the result from a function call (e.g. from eth_call)
+
+
   decodeFunctionResult(functionFragment, data) {
     if (typeof functionFragment === "string") {
       functionFragment = this.getFunction(functionFragment);
     }
+
     let bytes = (0, _bytes.arrayify)(data);
     let reason = null;
     let errorArgs = null;
     let errorName = null;
     let errorSignature = null;
+
     switch (bytes.length % this._abiCoder._getWordSize()) {
       case 0:
         try {
           return this._abiCoder.decode(functionFragment.outputs, bytes);
         } catch (error) {}
+
         break;
+
       case 4:
         {
           const selector = (0, _bytes.hexlify)(bytes.slice(0, 4));
           const builtin = BuiltinErrors[selector];
+
           if (builtin) {
             errorArgs = this._abiCoder.decode(builtin.inputs, bytes.slice(4));
             errorName = builtin.name;
             errorSignature = builtin.signature;
+
             if (builtin.reason) {
               reason = errorArgs[0];
             }
@@ -10445,9 +11770,11 @@ class Interface {
               console.log(error);
             }
           }
+
           break;
         }
     }
+
     return logger.throwError("call revert exception", _logger.Logger.errors.CALL_EXCEPTION, {
       method: functionFragment.format(),
       errorArgs,
@@ -10455,49 +11782,62 @@ class Interface {
       errorSignature,
       reason
     });
-  }
-  // Encode the result for a function call (e.g. for eth_call)
+  } // Encode the result for a function call (e.g. for eth_call)
+
+
   encodeFunctionResult(functionFragment, values) {
     if (typeof functionFragment === "string") {
       functionFragment = this.getFunction(functionFragment);
     }
+
     return (0, _bytes.hexlify)(this._abiCoder.encode(functionFragment.outputs, values || []));
-  }
-  // Create the filter for the event with search criteria (e.g. for eth_filterLog)
+  } // Create the filter for the event with search criteria (e.g. for eth_filterLog)
+
+
   encodeFilterTopics(eventFragment, values) {
     if (typeof eventFragment === "string") {
       eventFragment = this.getEvent(eventFragment);
     }
+
     if (values.length > eventFragment.inputs.length) {
       logger.throwError("too many arguments for " + eventFragment.format(), _logger.Logger.errors.UNEXPECTED_ARGUMENT, {
         argument: "values",
         value: values
       });
     }
+
     let topics = [];
+
     if (!eventFragment.anonymous) {
       topics.push(this.getEventTopic(eventFragment));
     }
+
     const encodeTopic = (param, value) => {
       if (param.type === "string") {
         return (0, _hash.id)(value);
       } else if (param.type === "bytes") {
         return (0, _keccak.keccak256)((0, _bytes.hexlify)(value));
-      }
-      // Check addresses are valid
+      } // Check addresses are valid
+
+
       if (param.type === "address") {
         this._abiCoder.encode(["address"], [value]);
       }
+
       return (0, _bytes.hexZeroPad)((0, _bytes.hexlify)(value), 32);
     };
+
     values.forEach((value, index) => {
       let param = eventFragment.inputs[index];
+
       if (!param.indexed) {
         if (value != null) {
           logger.throwArgumentError("cannot filter non-indexed parameters; must be null", "contract." + param.name, value);
         }
+
         return;
       }
+
       if (value == null) {
         topics.push(null);
       } else if (param.baseType === "array" || param.baseType === "tuple") {
@@ -10507,28 +11847,35 @@ class Interface {
       } else {
         topics.push(encodeTopic(param, value));
       }
-    });
-    // Trim off trailing nulls
+    }); // Trim off trailing nulls
+
     while (topics.length && topics[topics.length - 1] === null) {
       topics.pop();
     }
+
     return topics;
   }
+
   encodeEventLog(eventFragment, values) {
     if (typeof eventFragment === "string") {
       eventFragment = this.getEvent(eventFragment);
     }
+
     const topics = [];
     const dataTypes = [];
     const dataValues = [];
+
     if (!eventFragment.anonymous) {
       topics.push(this.getEventTopic(eventFragment));
     }
+
     if (values.length !== eventFragment.inputs.length) {
       logger.throwArgumentError("event arguments/values mismatch", "values", values);
     }
+
     eventFragment.inputs.forEach((param, index) => {
       const value = values[index];
+
       if (param.indexed) {
         if (param.type === "string") {
           topics.push((0, _hash.id)(value));
@@ -10549,14 +11896,17 @@ class Interface {
       data: this._abiCoder.encode(dataTypes, dataValues),
       topics: topics
     };
-  }
-  // Decode a filter for the event and the search criteria
+  } // Decode a filter for the event and the search criteria
+
+
   decodeEventLog(eventFragment, data, topics) {
     if (typeof eventFragment === "string") {
       eventFragment = this.getEvent(eventFragment);
     }
+
     if (topics != null && !eventFragment.anonymous) {
       let topicHash = this.getEventTopic(eventFragment);
+
       if (!(0, _bytes.isHexString)(topics[0], 32) || topics[0].toLowerCase() !== topicHash) {
         logger.throwError("fragment/topic mismatch", _logger.Logger.errors.INVALID_ARGUMENT, {
           argument: "topics[0]",
@@ -10564,8 +11914,10 @@ class Interface {
           value: topics[0]
         });
       }
+
       topics = topics.slice(1);
     }
+
     let indexed = [];
     let nonIndexed = [];
     let dynamic = [];
@@ -10587,10 +11939,12 @@ class Interface {
       }
     });
     let resultIndexed = topics != null ? this._abiCoder.decode(indexed, (0, _bytes.concat)(topics)) : null;
+
     let resultNonIndexed = this._abiCoder.decode(nonIndexed, data, true);
+
     let result = [];
     let nonIndexedIndex = 0,
-      indexedIndex = 0;
+        indexedIndex = 0;
     eventFragment.inputs.forEach((param, index) => {
       if (param.indexed) {
         if (resultIndexed == null) {
@@ -10616,11 +11970,12 @@ class Interface {
         } catch (error) {
           result[index] = error;
         }
-      }
-      // Add the keyword argument if named and safe
+      } // Add the keyword argument if named and safe
+
+
       if (param.name && result[param.name] == null) {
-        const value = result[index];
-        // Make error named values throw on access
+        const value = result[index]; // Make error named values throw on access
+
         if (value instanceof Error) {
           Object.defineProperty(result, param.name, {
             enumerable: true,
@@ -10632,10 +11987,11 @@ class Interface {
           result[param.name] = value;
         }
       }
-    });
-    // Make all error indexed values throw on access
+    }); // Make all error indexed values throw on access
+
     for (let i = 0; i < result.length; i++) {
       const value = result[i];
+
       if (value instanceof Error) {
         Object.defineProperty(result, i, {
           enumerable: true,
@@ -10645,15 +12001,19 @@ class Interface {
         });
       }
     }
+
     return Object.freeze(result);
-  }
-  // Given a transaction, find the matching function fragment (if any) and
+  } // Given a transaction, find the matching function fragment (if any) and
   // determine all its properties and call parameters
+
+
   parseTransaction(tx) {
     let fragment = this.getFunction(tx.data.substring(0, 10).toLowerCase());
+
     if (!fragment) {
       return null;
     }
+
     return new TransactionDescription({
       args: this._abiCoder.decode(fragment.inputs, "0x" + tx.data.substring(10)),
       functionFragment: fragment,
@@ -10662,19 +12022,22 @@ class Interface {
       sighash: this.getSighash(fragment),
       value: _bignumber.BigNumber.from(tx.value || "0")
     });
-  }
-  // @TODO
+  } // @TODO
   //parseCallResult(data: BytesLike): ??
   // Given an event log, find the matching event fragment (if any) and
   // determine all its properties and values
+
+
   parseLog(log) {
     let fragment = this.getEvent(log.topics[0]);
+
     if (!fragment || fragment.anonymous) {
       return null;
-    }
-    // @TODO: If anonymous, and the only method, and the input count matches, should we parse?
+    } // @TODO: If anonymous, and the only method, and the input count matches, should we parse?
     //        Probably not, because just because it is the only event in the ABI does
     //        not mean we have the full ABI; maybe just a fragment?
+
+
     return new LogDescription({
       eventFragment: fragment,
       name: fragment.name,
@@ -10683,12 +12046,15 @@ class Interface {
       args: this.decodeEventLog(fragment, log.data, log.topics)
     });
   }
+
   parseError(data) {
     const hexData = (0, _bytes.hexlify)(data);
     let fragment = this.getError(hexData.substring(0, 10).toLowerCase());
+
     if (!fragment) {
       return null;
     }
+
     return new ErrorDescription({
       args: this._abiCoder.decode(fragment.inputs, "0x" + hexData.substring(10)),
       errorFragment: fragment,
@@ -10708,10 +12074,14 @@ class Interface {
       return new Interface(value);
   }
   */
+
+
   static isInterface(value) {
     return !!(value && value._isInterface);
   }
+
 }
+
 exports.Interface = Interface;
 },{"@ethersproject/address":"a1wm","@ethersproject/bignumber":"efJK","@ethersproject/bytes":"aqkS","@ethersproject/hash":"eHxR","@ethersproject/keccak256":"g6Gq","@ethersproject/properties":"JuuX","./abi-coder":"F7PL","./coders/abstract-coder":"T2f8","./fragments":"togt","@ethersproject/logger":"kMNH","./_version":"KSRV"}],"FSnr":[function(require,module,exports) {
 "use strict";
@@ -10803,8 +12173,11 @@ Object.defineProperty(exports, "defaultAbiCoder", {
     return _abiCoder.defaultAbiCoder;
   }
 });
+
 var _fragments = require("./fragments");
+
 var _abiCoder = require("./abi-coder");
+
 var _interface = require("./interface");
 },{"./fragments":"togt","./abi-coder":"F7PL","./interface":"OSBN"}],"n8Iw":[function(require,module,exports) {
 "use strict";
@@ -10822,17 +12195,24 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.TransactionOrderForkEvent = exports.TransactionForkEvent = exports.Provider = exports.ForkEvent = exports.BlockForkEvent = void 0;
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _properties = require("@ethersproject/properties");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -10841,6 +12221,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -10848,29 +12229,36 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 const logger = new _logger.Logger(_version.version);
 ;
-;
-//export type CallTransactionable = {
+; //export type CallTransactionable = {
 //    call(transaction: TransactionRequest): Promise<TransactionResponse>;
 //};
+
 class ForkEvent extends _properties.Description {
   static isForkEvent(value) {
     return !!(value && value._isForkEvent);
   }
+
 }
+
 exports.ForkEvent = ForkEvent;
+
 class BlockForkEvent extends ForkEvent {
   constructor(blockHash, expiry) {
     if (!(0, _bytes.isHexString)(blockHash, 32)) {
       logger.throwArgumentError("invalid blockHash", "blockHash", blockHash);
     }
+
     super({
       _isForkEvent: true,
       _isBlockForkEvent: true,
@@ -10878,13 +12266,17 @@ class BlockForkEvent extends ForkEvent {
       blockHash: blockHash
     });
   }
+
 }
+
 exports.BlockForkEvent = BlockForkEvent;
+
 class TransactionForkEvent extends ForkEvent {
   constructor(hash, expiry) {
     if (!(0, _bytes.isHexString)(hash, 32)) {
       logger.throwArgumentError("invalid transaction hash", "hash", hash);
     }
+
     super({
       _isForkEvent: true,
       _isTransactionForkEvent: true,
@@ -10892,16 +12284,21 @@ class TransactionForkEvent extends ForkEvent {
       hash: hash
     });
   }
+
 }
+
 exports.TransactionForkEvent = TransactionForkEvent;
+
 class TransactionOrderForkEvent extends ForkEvent {
   constructor(beforeHash, afterHash, expiry) {
     if (!(0, _bytes.isHexString)(beforeHash, 32)) {
       logger.throwArgumentError("invalid transaction hash", "beforeHash", beforeHash);
     }
+
     if (!(0, _bytes.isHexString)(afterHash, 32)) {
       logger.throwArgumentError("invalid transaction hash", "afterHash", afterHash);
     }
+
     super({
       _isForkEvent: true,
       _isTransactionOrderForkEvent: true,
@@ -10910,15 +12307,19 @@ class TransactionOrderForkEvent extends ForkEvent {
       afterHash: afterHash
     });
   }
-}
-///////////////////////////////
+
+} ///////////////////////////////
 // Exported Abstracts
+
+
 exports.TransactionOrderForkEvent = TransactionOrderForkEvent;
+
 class Provider {
   constructor() {
     logger.checkAbstract(new.target, Provider);
     (0, _properties.defineReadOnly)(this, "_isProvider", true);
   }
+
   getFeeData() {
     return __awaiter(this, void 0, void 0, function* () {
       const {
@@ -10933,7 +12334,8 @@ class Provider {
         })
       });
       let maxFeePerGas = null,
-        maxPriorityFeePerGas = null;
+          maxPriorityFeePerGas = null;
+
       if (block && block.baseFeePerGas) {
         // We may want to compute this more accurately in the future,
         // using the formula "check if the base fee is correct".
@@ -10941,25 +12343,31 @@ class Provider {
         maxPriorityFeePerGas = _bignumber.BigNumber.from("2500000000");
         maxFeePerGas = block.baseFeePerGas.mul(2).add(maxPriorityFeePerGas);
       }
+
       return {
         maxFeePerGas,
         maxPriorityFeePerGas,
         gasPrice
       };
     });
-  }
-  // Alias for "on"
+  } // Alias for "on"
+
+
   addListener(eventName, listener) {
     return this.on(eventName, listener);
-  }
-  // Alias for "off"
+  } // Alias for "off"
+
+
   removeListener(eventName, listener) {
     return this.off(eventName, listener);
   }
+
   static isProvider(value) {
     return !!(value && value._isProvider);
   }
+
 }
+
 exports.Provider = Provider;
 },{"@ethersproject/bignumber":"efJK","@ethersproject/bytes":"aqkS","@ethersproject/properties":"JuuX","@ethersproject/logger":"kMNH","./_version":"n8Iw"}],"Kg3c":[function(require,module,exports) {
 "use strict";
@@ -10977,15 +12385,20 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.VoidSigner = exports.Signer = void 0;
+
 var _properties = require("@ethersproject/properties");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -10994,6 +12407,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -11001,89 +12415,110 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 const logger = new _logger.Logger(_version.version);
 const allowedTransactionKeys = ["accessList", "chainId", "customData", "data", "from", "gasLimit", "gasPrice", "maxFeePerGas", "maxPriorityFeePerGas", "nonce", "to", "type", "value"];
 const forwardErrors = [_logger.Logger.errors.INSUFFICIENT_FUNDS, _logger.Logger.errors.NONCE_EXPIRED, _logger.Logger.errors.REPLACEMENT_UNDERPRICED];
 ;
 ;
+
 class Signer {
   ///////////////////
   // Sub-classes MUST call super
   constructor() {
     logger.checkAbstract(new.target, Signer);
     (0, _properties.defineReadOnly)(this, "_isSigner", true);
-  }
-  ///////////////////
+  } ///////////////////
   // Sub-classes MAY override these
+
+
   getBalance(blockTag) {
     return __awaiter(this, void 0, void 0, function* () {
       this._checkProvider("getBalance");
+
       return yield this.provider.getBalance(this.getAddress(), blockTag);
     });
   }
+
   getTransactionCount(blockTag) {
     return __awaiter(this, void 0, void 0, function* () {
       this._checkProvider("getTransactionCount");
+
       return yield this.provider.getTransactionCount(this.getAddress(), blockTag);
     });
-  }
-  // Populates "from" if unspecified, and estimates the gas for the transaction
+  } // Populates "from" if unspecified, and estimates the gas for the transaction
+
+
   estimateGas(transaction) {
     return __awaiter(this, void 0, void 0, function* () {
       this._checkProvider("estimateGas");
+
       const tx = yield (0, _properties.resolveProperties)(this.checkTransaction(transaction));
       return yield this.provider.estimateGas(tx);
     });
-  }
-  // Populates "from" if unspecified, and calls with the transaction
+  } // Populates "from" if unspecified, and calls with the transaction
+
+
   call(transaction, blockTag) {
     return __awaiter(this, void 0, void 0, function* () {
       this._checkProvider("call");
+
       const tx = yield (0, _properties.resolveProperties)(this.checkTransaction(transaction));
       return yield this.provider.call(tx, blockTag);
     });
-  }
-  // Populates all fields in a transaction, signs it and sends it to the network
+  } // Populates all fields in a transaction, signs it and sends it to the network
+
+
   sendTransaction(transaction) {
     return __awaiter(this, void 0, void 0, function* () {
       this._checkProvider("sendTransaction");
+
       const tx = yield this.populateTransaction(transaction);
       const signedTx = yield this.signTransaction(tx);
       return yield this.provider.sendTransaction(signedTx);
     });
   }
+
   getChainId() {
     return __awaiter(this, void 0, void 0, function* () {
       this._checkProvider("getChainId");
+
       const network = yield this.provider.getNetwork();
       return network.chainId;
     });
   }
+
   getGasPrice() {
     return __awaiter(this, void 0, void 0, function* () {
       this._checkProvider("getGasPrice");
+
       return yield this.provider.getGasPrice();
     });
   }
+
   getFeeData() {
     return __awaiter(this, void 0, void 0, function* () {
       this._checkProvider("getFeeData");
+
       return yield this.provider.getFeeData();
     });
   }
+
   resolveName(name) {
     return __awaiter(this, void 0, void 0, function* () {
       this._checkProvider("resolveName");
+
       return yield this.provider.resolveName(name);
     });
-  }
-  // Checks a transaction does not contain invalid keys and if
+  } // Checks a transaction does not contain invalid keys and if
   // no "from" is provided, populates it.
   // - does NOT require a provider
   // - adds "from" is not present
@@ -11092,13 +12527,17 @@ class Signer {
   //   - call
   //   - estimateGas
   //   - populateTransaction (and therefor sendTransaction)
+
+
   checkTransaction(transaction) {
     for (const key in transaction) {
       if (allowedTransactionKeys.indexOf(key) === -1) {
         logger.throwArgumentError("invalid transaction key: " + key, "transaction", transaction);
       }
     }
+
     const tx = (0, _properties.shallowCopy)(transaction);
+
     if (tx.from == null) {
       tx.from = this.getAddress();
     } else {
@@ -11107,42 +12546,52 @@ class Signer {
         if (result[0].toLowerCase() !== result[1].toLowerCase()) {
           logger.throwArgumentError("from address mismatch", "transaction", transaction);
         }
+
         return result[0];
       });
     }
+
     return tx;
-  }
-  // Populates ALL keys for a transaction and checks that "from" matches
+  } // Populates ALL keys for a transaction and checks that "from" matches
   // this Signer. Should be used by sendTransaction but NOT by signTransaction.
   // By default called from: (overriding these prevents it)
   //   - sendTransaction
   //
   // Notes:
   //  - We allow gasPrice for EIP-1559 as long as it matches maxFeePerGas
+
+
   populateTransaction(transaction) {
     return __awaiter(this, void 0, void 0, function* () {
       const tx = yield (0, _properties.resolveProperties)(this.checkTransaction(transaction));
+
       if (tx.to != null) {
         tx.to = Promise.resolve(tx.to).then(to => __awaiter(this, void 0, void 0, function* () {
           if (to == null) {
             return null;
           }
+
           const address = yield this.resolveName(to);
+
           if (address == null) {
             logger.throwArgumentError("provided ENS name resolves to null", "tx.to", to);
           }
+
           return address;
-        }));
-        // Prevent this error from causing an UnhandledPromiseException
+        })); // Prevent this error from causing an UnhandledPromiseException
+
         tx.to.catch(error => {});
-      }
-      // Do not allow mixing pre-eip-1559 and eip-1559 properties
+      } // Do not allow mixing pre-eip-1559 and eip-1559 properties
+
+
       const hasEip1559 = tx.maxFeePerGas != null || tx.maxPriorityFeePerGas != null;
+
       if (tx.gasPrice != null && (tx.type === 2 || hasEip1559)) {
         logger.throwArgumentError("eip-1559 transaction do not support gasPrice", "transaction", transaction);
       } else if ((tx.type === 0 || tx.type === 1) && hasEip1559) {
         logger.throwArgumentError("pre-eip-1559 transaction do not support maxFeePerGas/maxPriorityFeePerGas", "transaction", transaction);
       }
+
       if ((tx.type === 2 || tx.type == null) && tx.maxFeePerGas != null && tx.maxPriorityFeePerGas != null) {
         // Fully-formed EIP-1559 transaction (skip getFeeData)
         tx.type = 2;
@@ -11155,12 +12604,14 @@ class Signer {
       } else {
         // We need to get fee data to determine things
         const feeData = yield this.getFeeData();
+
         if (tx.type == null) {
           // We need to auto-detect the intended type of this transaction...
           if (feeData.maxFeePerGas != null && feeData.maxPriorityFeePerGas != null) {
             // The network supports EIP-1559!
             // Upgrade transaction from null to eip-1559
             tx.type = 2;
+
             if (tx.gasPrice != null) {
               // Using legacy gasPrice property on an eip-1559 network,
               // so use gasPrice as both fee properties
@@ -11173,6 +12624,7 @@ class Signer {
               if (tx.maxFeePerGas == null) {
                 tx.maxFeePerGas = feeData.maxFeePerGas;
               }
+
               if (tx.maxPriorityFeePerGas == null) {
                 tx.maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
               }
@@ -11184,12 +12636,14 @@ class Signer {
               logger.throwError("network does not support EIP-1559", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
                 operation: "populateTransaction"
               });
-            }
-            // Populate missing fee data
+            } // Populate missing fee data
+
+
             if (tx.gasPrice == null) {
               tx.gasPrice = feeData.gasPrice;
-            }
-            // Explicitly set untyped transaction to legacy
+            } // Explicitly set untyped transaction to legacy
+
+
             tx.type = 0;
           } else {
             // getFeeData has failed us.
@@ -11203,25 +12657,30 @@ class Signer {
           if (tx.maxFeePerGas == null) {
             tx.maxFeePerGas = feeData.maxFeePerGas;
           }
+
           if (tx.maxPriorityFeePerGas == null) {
             tx.maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
           }
         }
       }
+
       if (tx.nonce == null) {
         tx.nonce = this.getTransactionCount("pending");
       }
+
       if (tx.gasLimit == null) {
         tx.gasLimit = this.estimateGas(tx).catch(error => {
           if (forwardErrors.indexOf(error.code) >= 0) {
             throw error;
           }
+
           return logger.throwError("cannot estimate gas; transaction may fail or may require manual gas limit", _logger.Logger.errors.UNPREDICTABLE_GAS_LIMIT, {
             error: error,
             tx: tx
           });
         });
       }
+
       if (tx.chainId == null) {
         tx.chainId = this.getChainId();
       } else {
@@ -11229,14 +12688,17 @@ class Signer {
           if (results[1] !== 0 && results[0] !== results[1]) {
             logger.throwArgumentError("chainId address mismatch", "transaction", transaction);
           }
+
           return results[0];
         });
       }
+
       return yield (0, _properties.resolveProperties)(tx);
     });
-  }
-  ///////////////////
+  } ///////////////////
   // Sub-classes SHOULD leave these alone
+
+
   _checkProvider(operation) {
     if (!this.provider) {
       logger.throwError("missing provider", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
@@ -11244,11 +12706,15 @@ class Signer {
       });
     }
   }
+
   static isSigner(value) {
     return !!(value && value._isSigner);
   }
+
 }
+
 exports.Signer = Signer;
+
 class VoidSigner extends Signer {
   constructor(address, provider) {
     logger.checkNew(new.target, VoidSigner);
@@ -11256,9 +12722,11 @@ class VoidSigner extends Signer {
     (0, _properties.defineReadOnly)(this, "address", address);
     (0, _properties.defineReadOnly)(this, "provider", provider || null);
   }
+
   getAddress() {
     return Promise.resolve(this.address);
   }
+
   _fail(message, operation) {
     return Promise.resolve().then(() => {
       logger.throwError(message, _logger.Logger.errors.UNSUPPORTED_OPERATION, {
@@ -11266,19 +12734,25 @@ class VoidSigner extends Signer {
       });
     });
   }
+
   signMessage(message) {
     return this._fail("VoidSigner cannot sign messages", "signMessage");
   }
+
   signTransaction(transaction) {
     return this._fail("VoidSigner cannot sign transactions", "signTransaction");
   }
+
   _signTypedData(domain, types, value) {
     return this._fail("VoidSigner cannot sign typed data", "signTypedData");
   }
+
   connect(provider) {
     return new VoidSigner(this.address, provider);
   }
+
 }
+
 exports.VoidSigner = VoidSigner;
 },{"@ethersproject/properties":"JuuX","@ethersproject/logger":"kMNH","./_version":"Kg3c"}],"PhA8":[function(require,module,exports) {
 module.exports = assert;
@@ -12572,13 +14046,19 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.EC = void 0;
+
 var _bn = _interopRequireDefault(require("bn.js"));
+
 var _hash = _interopRequireDefault(require("hash.js"));
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
+
 function getDefaultExportFromCjs(x) {
   return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
 }
+
 function createCommonjsModule(fn, basedir, module) {
   return module = {
     path: basedir,
@@ -12588,12 +14068,15 @@ function createCommonjsModule(fn, basedir, module) {
     }
   }, fn(module, module.exports), module.exports;
 }
+
 function getDefaultExportFromNamespaceIfPresent(n) {
   return n && Object.prototype.hasOwnProperty.call(n, 'default') ? n['default'] : n;
 }
+
 function getDefaultExportFromNamespaceIfNotNamed(n) {
   return n && Object.prototype.hasOwnProperty.call(n, 'default') && Object.keys(n).length === 1 ? n['default'] : n;
 }
+
 function getAugmentedNamespace(n) {
   if (n.__esModule) return n;
   var a = Object.defineProperty({}, '__esModule', {
@@ -12610,31 +14093,41 @@ function getAugmentedNamespace(n) {
   });
   return a;
 }
+
 function commonjsRequire() {
   throw new Error('Dynamic requires are not currently supported by @rollup/plugin-commonjs');
 }
+
 var minimalisticAssert = assert;
+
 function assert(val, msg) {
   if (!val) throw new Error(msg || 'Assertion failed');
 }
+
 assert.equal = function assertEqual(l, r, msg) {
   if (l != r) throw new Error(msg || 'Assertion failed: ' + l + ' != ' + r);
 };
+
 var utils_1 = createCommonjsModule(function (module, exports) {
   'use strict';
 
   var utils = exports;
+
   function toArray(msg, enc) {
     if (Array.isArray(msg)) return msg.slice();
     if (!msg) return [];
     var res = [];
+
     if (typeof msg !== 'string') {
       for (var i = 0; i < msg.length; i++) res[i] = msg[i] | 0;
+
       return res;
     }
+
     if (enc === 'hex') {
       msg = msg.replace(/[^a-z0-9]+/ig, '');
       if (msg.length % 2 !== 0) msg = '0' + msg;
+
       for (var i = 0; i < msg.length; i += 2) res.push(parseInt(msg[i] + msg[i + 1], 16));
     } else {
       for (var i = 0; i < msg.length; i++) {
@@ -12644,19 +14137,28 @@ var utils_1 = createCommonjsModule(function (module, exports) {
         if (hi) res.push(hi, lo);else res.push(lo);
       }
     }
+
     return res;
   }
+
   utils.toArray = toArray;
+
   function zero2(word) {
     if (word.length === 1) return '0' + word;else return word;
   }
+
   utils.zero2 = zero2;
+
   function toHex(msg) {
     var res = '';
+
     for (var i = 0; i < msg.length; i++) res += zero2(msg[i].toString(16));
+
     return res;
   }
+
   utils.toHex = toHex;
+
   utils.encode = function encode(arr, enc) {
     if (enc === 'hex') return toHex(arr);else return arr;
   };
@@ -12669,31 +14171,34 @@ var utils_1$1 = createCommonjsModule(function (module, exports) {
   utils.toArray = utils_1.toArray;
   utils.zero2 = utils_1.zero2;
   utils.toHex = utils_1.toHex;
-  utils.encode = utils_1.encode;
+  utils.encode = utils_1.encode; // Represent num in a w-NAF form
 
-  // Represent num in a w-NAF form
   function getNAF(num, w, bits) {
     var naf = new Array(Math.max(num.bitLength(), bits) + 1);
     naf.fill(0);
     var ws = 1 << w + 1;
     var k = num.clone();
+
     for (var i = 0; i < naf.length; i++) {
       var z;
       var mod = k.andln(ws - 1);
+
       if (k.isOdd()) {
         if (mod > (ws >> 1) - 1) z = (ws >> 1) - mod;else z = mod;
         k.isubn(z);
       } else {
         z = 0;
       }
+
       naf[i] = z;
       k.iushrn(1);
     }
+
     return naf;
   }
-  utils.getNAF = getNAF;
 
-  // Represent k1, k2 in a Joint Sparse Form
+  utils.getNAF = getNAF; // Represent k1, k2 in a Joint Sparse Form
+
   function getJSF(k1, k2) {
     var jsf = [[], []];
     k1 = k1.clone();
@@ -12701,6 +14206,7 @@ var utils_1$1 = createCommonjsModule(function (module, exports) {
     var d1 = 0;
     var d2 = 0;
     var m8;
+
     while (k1.cmpn(-d1) > 0 || k2.cmpn(-d2) > 0) {
       // First phase
       var m14 = k1.andln(3) + d1 & 3;
@@ -12708,76 +14214,86 @@ var utils_1$1 = createCommonjsModule(function (module, exports) {
       if (m14 === 3) m14 = -1;
       if (m24 === 3) m24 = -1;
       var u1;
+
       if ((m14 & 1) === 0) {
         u1 = 0;
       } else {
         m8 = k1.andln(7) + d1 & 7;
         if ((m8 === 3 || m8 === 5) && m24 === 2) u1 = -m14;else u1 = m14;
       }
+
       jsf[0].push(u1);
       var u2;
+
       if ((m24 & 1) === 0) {
         u2 = 0;
       } else {
         m8 = k2.andln(7) + d2 & 7;
         if ((m8 === 3 || m8 === 5) && m14 === 2) u2 = -m24;else u2 = m24;
       }
-      jsf[1].push(u2);
 
-      // Second phase
+      jsf[1].push(u2); // Second phase
+
       if (2 * d1 === u1 + 1) d1 = 1 - d1;
       if (2 * d2 === u2 + 1) d2 = 1 - d2;
       k1.iushrn(1);
       k2.iushrn(1);
     }
+
     return jsf;
   }
+
   utils.getJSF = getJSF;
+
   function cachedProperty(obj, name, computer) {
     var key = '_' + name;
+
     obj.prototype[name] = function cachedProperty() {
       return this[key] !== undefined ? this[key] : this[key] = computer.call(this);
     };
   }
+
   utils.cachedProperty = cachedProperty;
+
   function parseBytes(bytes) {
     return typeof bytes === 'string' ? utils.toArray(bytes, 'hex') : bytes;
   }
+
   utils.parseBytes = parseBytes;
+
   function intFromLE(bytes) {
     return new _bn.default(bytes, 'hex', 'le');
   }
+
   utils.intFromLE = intFromLE;
 });
 'use strict';
+
 var getNAF = utils_1$1.getNAF;
 var getJSF = utils_1$1.getJSF;
 var assert$1 = utils_1$1.assert;
+
 function BaseCurve(type, conf) {
   this.type = type;
-  this.p = new _bn.default(conf.p, 16);
+  this.p = new _bn.default(conf.p, 16); // Use Montgomery, when there is no fast reduction for the prime
 
-  // Use Montgomery, when there is no fast reduction for the prime
-  this.red = conf.prime ? _bn.default.red(conf.prime) : _bn.default.mont(this.p);
+  this.red = conf.prime ? _bn.default.red(conf.prime) : _bn.default.mont(this.p); // Useful for many curves
 
-  // Useful for many curves
   this.zero = new _bn.default(0).toRed(this.red);
   this.one = new _bn.default(1).toRed(this.red);
-  this.two = new _bn.default(2).toRed(this.red);
+  this.two = new _bn.default(2).toRed(this.red); // Curve configuration, optional
 
-  // Curve configuration, optional
   this.n = conf.n && new _bn.default(conf.n, 16);
-  this.g = conf.g && this.pointFromJSON(conf.g, conf.gRed);
+  this.g = conf.g && this.pointFromJSON(conf.g, conf.gRed); // Temporary arrays
 
-  // Temporary arrays
   this._wnafT1 = new Array(4);
   this._wnafT2 = new Array(4);
   this._wnafT3 = new Array(4);
   this._wnafT4 = new Array(4);
-  this._bitLength = this.n ? this.n.bitLength() : 0;
+  this._bitLength = this.n ? this.n.bitLength() : 0; // Generalized Greg Maxwell's trick
 
-  // Generalized Greg Maxwell's trick
   var adjustCount = this.n && this.p.div(this.n);
+
   if (!adjustCount || adjustCount.cmpn(100) > 0) {
     this.redN = null;
   } else {
@@ -12785,61 +14301,75 @@ function BaseCurve(type, conf) {
     this.redN = this.n.toRed(this.red);
   }
 }
+
 var base = BaseCurve;
+
 BaseCurve.prototype.point = function point() {
   throw new Error('Not implemented');
 };
+
 BaseCurve.prototype.validate = function validate() {
   throw new Error('Not implemented');
 };
+
 BaseCurve.prototype._fixedNafMul = function _fixedNafMul(p, k) {
   assert$1(p.precomputed);
+
   var doubles = p._getDoubles();
+
   var naf = getNAF(k, 1, this._bitLength);
   var I = (1 << doubles.step + 1) - (doubles.step % 2 === 0 ? 2 : 1);
-  I /= 3;
+  I /= 3; // Translate into more windowed form
 
-  // Translate into more windowed form
   var repr = [];
   var j;
   var nafW;
+
   for (j = 0; j < naf.length; j += doubles.step) {
     nafW = 0;
+
     for (var l = j + doubles.step - 1; l >= j; l--) nafW = (nafW << 1) + naf[l];
+
     repr.push(nafW);
   }
+
   var a = this.jpoint(null, null, null);
   var b = this.jpoint(null, null, null);
+
   for (var i = I; i > 0; i--) {
     for (j = 0; j < repr.length; j++) {
       nafW = repr[j];
       if (nafW === i) b = b.mixedAdd(doubles.points[j]);else if (nafW === -i) b = b.mixedAdd(doubles.points[j].neg());
     }
+
     a = a.add(b);
   }
+
   return a.toP();
 };
+
 BaseCurve.prototype._wnafMul = function _wnafMul(p, k) {
-  var w = 4;
+  var w = 4; // Precompute window
 
-  // Precompute window
   var nafPoints = p._getNAFPoints(w);
+
   w = nafPoints.wnd;
-  var wnd = nafPoints.points;
+  var wnd = nafPoints.points; // Get NAF form
 
-  // Get NAF form
-  var naf = getNAF(k, w, this._bitLength);
+  var naf = getNAF(k, w, this._bitLength); // Add `this`*(N+1) for every w-NAF index
 
-  // Add `this`*(N+1) for every w-NAF index
   var acc = this.jpoint(null, null, null);
+
   for (var i = naf.length - 1; i >= 0; i--) {
     // Count zeroes
     for (var l = 0; i >= 0 && naf[i] === 0; i--) l++;
+
     if (i >= 0) l++;
     acc = acc.dblp(l);
     if (i < 0) break;
     var z = naf[i];
     assert$1(z !== 0);
+
     if (p.type === 'affine') {
       // J +- P
       if (z > 0) acc = acc.mixedAdd(wnd[z - 1 >> 1]);else acc = acc.mixedAdd(wnd[-z - 1 >> 1].neg());
@@ -12848,29 +14378,34 @@ BaseCurve.prototype._wnafMul = function _wnafMul(p, k) {
       if (z > 0) acc = acc.add(wnd[z - 1 >> 1]);else acc = acc.add(wnd[-z - 1 >> 1].neg());
     }
   }
+
   return p.type === 'affine' ? acc.toP() : acc;
 };
+
 BaseCurve.prototype._wnafMulAdd = function _wnafMulAdd(defW, points, coeffs, len, jacobianResult) {
   var wndWidth = this._wnafT1;
   var wnd = this._wnafT2;
-  var naf = this._wnafT3;
+  var naf = this._wnafT3; // Fill all arrays
 
-  // Fill all arrays
   var max = 0;
   var i;
   var j;
   var p;
+
   for (i = 0; i < len; i++) {
     p = points[i];
+
     var nafPoints = p._getNAFPoints(defW);
+
     wndWidth[i] = nafPoints.wnd;
     wnd[i] = nafPoints.points;
-  }
+  } // Comb small window NAFs
 
-  // Comb small window NAFs
+
   for (i = len - 1; i >= 1; i -= 2) {
     var a = i - 1;
     var b = i;
+
     if (wndWidth[a] !== 1 || wndWidth[b] !== 1) {
       naf[a] = getNAF(coeffs[a], wndWidth[a], this._bitLength);
       naf[b] = getNAF(coeffs[b], wndWidth[b], this._bitLength);
@@ -12878,12 +14413,17 @@ BaseCurve.prototype._wnafMulAdd = function _wnafMulAdd(defW, points, coeffs, len
       max = Math.max(naf[b].length, max);
       continue;
     }
-    var comb = [points[a], /* 1 */
-    null, /* 3 */
-    null, /* 5 */
-    points[b] /* 7 */];
 
-    // Try to avoid Projective points, if possible
+    var comb = [points[a],
+    /* 1 */
+    null,
+    /* 3 */
+    null,
+    /* 5 */
+    points[b]
+    /* 7 */
+    ]; // Try to avoid Projective points, if possible
+
     if (points[a].y.cmp(points[b].y) === 0) {
       comb[1] = points[a].add(points[b]);
       comb[2] = points[a].toJ().mixedAdd(points[b].neg());
@@ -12894,20 +14434,31 @@ BaseCurve.prototype._wnafMulAdd = function _wnafMulAdd(defW, points, coeffs, len
       comb[1] = points[a].toJ().mixedAdd(points[b]);
       comb[2] = points[a].toJ().mixedAdd(points[b].neg());
     }
-    var index = [-3, /* -1 -1 */
-    -1, /* -1 0 */
-    -5, /* -1 1 */
-    -7, /* 0 -1 */
-    0, /* 0 0 */
-    7, /* 0 1 */
-    5, /* 1 -1 */
-    1, /* 1 0 */
-    3 /* 1 1 */];
 
+    var index = [-3,
+    /* -1 -1 */
+    -1,
+    /* -1 0 */
+    -5,
+    /* -1 1 */
+    -7,
+    /* 0 -1 */
+    0,
+    /* 0 0 */
+    7,
+    /* 0 1 */
+    5,
+    /* 1 -1 */
+    1,
+    /* 1 0 */
+    3
+    /* 1 1 */
+    ];
     var jsf = getJSF(coeffs[a], coeffs[b]);
     max = Math.max(jsf[0].length, max);
     naf[a] = new Array(max);
     naf[b] = new Array(max);
+
     for (j = 0; j < max; j++) {
       var ja = jsf[0][j] | 0;
       var jb = jsf[1][j] | 0;
@@ -12916,52 +14467,66 @@ BaseCurve.prototype._wnafMulAdd = function _wnafMulAdd(defW, points, coeffs, len
       wnd[a] = comb;
     }
   }
+
   var acc = this.jpoint(null, null, null);
   var tmp = this._wnafT4;
+
   for (i = max; i >= 0; i--) {
     var k = 0;
+
     while (i >= 0) {
       var zero = true;
+
       for (j = 0; j < len; j++) {
         tmp[j] = naf[j][i] | 0;
         if (tmp[j] !== 0) zero = false;
       }
+
       if (!zero) break;
       k++;
       i--;
     }
+
     if (i >= 0) k++;
     acc = acc.dblp(k);
     if (i < 0) break;
+
     for (j = 0; j < len; j++) {
       var z = tmp[j];
       p;
       if (z === 0) continue;else if (z > 0) p = wnd[j][z - 1 >> 1];else if (z < 0) p = wnd[j][-z - 1 >> 1].neg();
       if (p.type === 'affine') acc = acc.mixedAdd(p);else acc = acc.add(p);
     }
-  }
-  // Zeroify references
+  } // Zeroify references
+
+
   for (i = 0; i < len; i++) wnd[i] = null;
+
   if (jacobianResult) return acc;else return acc.toP();
 };
+
 function BasePoint(curve, type) {
   this.curve = curve;
   this.type = type;
   this.precomputed = null;
 }
+
 BaseCurve.BasePoint = BasePoint;
-BasePoint.prototype.eq = function eq( /*other*/
-) {
+
+BasePoint.prototype.eq = function
+  /*other*/
+eq() {
   throw new Error('Not implemented');
 };
+
 BasePoint.prototype.validate = function validate() {
   return this.curve.validate(this);
 };
+
 BaseCurve.prototype.decodePoint = function decodePoint(bytes, enc) {
   bytes = utils_1$1.toArray(bytes, enc);
-  var len = this.p.byteLength();
+  var len = this.p.byteLength(); // uncompressed, hybrid-odd, hybrid-even
 
-  // uncompressed, hybrid-odd, hybrid-even
   if ((bytes[0] === 0x04 || bytes[0] === 0x06 || bytes[0] === 0x07) && bytes.length - 1 === 2 * len) {
     if (bytes[0] === 0x06) assert$1(bytes[bytes.length - 1] % 2 === 0);else if (bytes[0] === 0x07) assert$1(bytes[bytes.length - 1] % 2 === 1);
     var res = this.point(bytes.slice(1, 1 + len), bytes.slice(1 + len, 1 + 2 * len));
@@ -12969,20 +14534,25 @@ BaseCurve.prototype.decodePoint = function decodePoint(bytes, enc) {
   } else if ((bytes[0] === 0x02 || bytes[0] === 0x03) && bytes.length - 1 === len) {
     return this.pointFromX(bytes.slice(1, 1 + len), bytes[0] === 0x03);
   }
+
   throw new Error('Unknown point format');
 };
+
 BasePoint.prototype.encodeCompressed = function encodeCompressed(enc) {
   return this.encode(enc, true);
 };
+
 BasePoint.prototype._encode = function _encode(compact) {
   var len = this.curve.p.byteLength();
   var x = this.getX().toArray('be', len);
   if (compact) return [this.getY().isEven() ? 0x02 : 0x03].concat(x);
   return [0x04].concat(x, this.getY().toArray('be', len));
 };
+
 BasePoint.prototype.encode = function encode(enc, compact) {
   return utils_1$1.encode(this._encode(compact), enc);
 };
+
 BasePoint.prototype.precompute = function precompute(power) {
   if (this.precomputed) return this;
   var precomputed = {
@@ -12996,44 +14566,57 @@ BasePoint.prototype.precompute = function precompute(power) {
   this.precomputed = precomputed;
   return this;
 };
+
 BasePoint.prototype._hasDoubles = function _hasDoubles(k) {
   if (!this.precomputed) return false;
   var doubles = this.precomputed.doubles;
   if (!doubles) return false;
   return doubles.points.length >= Math.ceil((k.bitLength() + 1) / doubles.step);
 };
+
 BasePoint.prototype._getDoubles = function _getDoubles(step, power) {
   if (this.precomputed && this.precomputed.doubles) return this.precomputed.doubles;
   var doubles = [this];
   var acc = this;
+
   for (var i = 0; i < power; i += step) {
     for (var j = 0; j < step; j++) acc = acc.dbl();
+
     doubles.push(acc);
   }
+
   return {
     step: step,
     points: doubles
   };
 };
+
 BasePoint.prototype._getNAFPoints = function _getNAFPoints(wnd) {
   if (this.precomputed && this.precomputed.naf) return this.precomputed.naf;
   var res = [this];
   var max = (1 << wnd) - 1;
   var dbl = max === 1 ? null : this.dbl();
+
   for (var i = 1; i < max; i++) res[i] = res[i - 1].add(dbl);
+
   return {
     wnd: wnd,
     points: res
   };
 };
+
 BasePoint.prototype._getBeta = function _getBeta() {
   return null;
 };
+
 BasePoint.prototype.dblp = function dblp(k) {
   var r = this;
+
   for (var i = 0; i < k; i++) r = r.dbl();
+
   return r;
 };
+
 var inherits_browser = createCommonjsModule(function (module) {
   if (typeof Object.create === 'function') {
     // implementation from standard node.js 'util' module
@@ -13055,7 +14638,9 @@ var inherits_browser = createCommonjsModule(function (module) {
     module.exports = function inherits(ctor, superCtor) {
       if (superCtor) {
         ctor.super_ = superCtor;
+
         var TempCtor = function () {};
+
         TempCtor.prototype = superCtor.prototype;
         ctor.prototype = new TempCtor();
         ctor.prototype.constructor = ctor;
@@ -13064,52 +14649,59 @@ var inherits_browser = createCommonjsModule(function (module) {
   }
 });
 'use strict';
+
 var assert$2 = utils_1$1.assert;
+
 function ShortCurve(conf) {
   base.call(this, 'short', conf);
   this.a = new _bn.default(conf.a, 16).toRed(this.red);
   this.b = new _bn.default(conf.b, 16).toRed(this.red);
   this.tinv = this.two.redInvm();
   this.zeroA = this.a.fromRed().cmpn(0) === 0;
-  this.threeA = this.a.fromRed().sub(this.p).cmpn(-3) === 0;
+  this.threeA = this.a.fromRed().sub(this.p).cmpn(-3) === 0; // If the curve is endomorphic, precalculate beta and lambda
 
-  // If the curve is endomorphic, precalculate beta and lambda
   this.endo = this._getEndomorphism(conf);
   this._endoWnafT1 = new Array(4);
   this._endoWnafT2 = new Array(4);
 }
+
 inherits_browser(ShortCurve, base);
 var short_1 = ShortCurve;
+
 ShortCurve.prototype._getEndomorphism = function _getEndomorphism(conf) {
   // No efficient endomorphism
-  if (!this.zeroA || !this.g || !this.n || this.p.modn(3) !== 1) return;
+  if (!this.zeroA || !this.g || !this.n || this.p.modn(3) !== 1) return; // Compute beta and lambda, that lambda * P = (beta * Px; Py)
 
-  // Compute beta and lambda, that lambda * P = (beta * Px; Py)
   var beta;
   var lambda;
+
   if (conf.beta) {
     beta = new _bn.default(conf.beta, 16).toRed(this.red);
   } else {
-    var betas = this._getEndoRoots(this.p);
-    // Choose the smallest beta
+    var betas = this._getEndoRoots(this.p); // Choose the smallest beta
+
+
     beta = betas[0].cmp(betas[1]) < 0 ? betas[0] : betas[1];
     beta = beta.toRed(this.red);
   }
+
   if (conf.lambda) {
     lambda = new _bn.default(conf.lambda, 16);
   } else {
     // Choose the lambda that is matching selected beta
     var lambdas = this._getEndoRoots(this.n);
+
     if (this.g.mul(lambdas[0]).x.cmp(this.g.x.redMul(beta)) === 0) {
       lambda = lambdas[0];
     } else {
       lambda = lambdas[1];
       assert$2(this.g.mul(lambda).x.cmp(this.g.x.redMul(beta)) === 0);
     }
-  }
+  } // Get basis vectors, used for balanced length-two representation
 
-  // Get basis vectors, used for balanced length-two representation
+
   var basis;
+
   if (conf.basis) {
     basis = conf.basis.map(function (vec) {
       return {
@@ -13120,12 +14712,14 @@ ShortCurve.prototype._getEndomorphism = function _getEndomorphism(conf) {
   } else {
     basis = this._getEndoBasis(lambda);
   }
+
   return {
     beta: beta,
     lambda: lambda,
     basis: basis
   };
 };
+
 ShortCurve.prototype._getEndoRoots = function _getEndoRoots(num) {
   // Find roots of for x^2 + x + 1 in F
   // Root = (-1 +- Sqrt(-3)) / 2
@@ -13138,37 +14732,38 @@ ShortCurve.prototype._getEndoRoots = function _getEndoRoots(num) {
   var l2 = ntinv.redSub(s).fromRed();
   return [l1, l2];
 };
+
 ShortCurve.prototype._getEndoBasis = function _getEndoBasis(lambda) {
   // aprxSqrt >= sqrt(this.n)
-  var aprxSqrt = this.n.ushrn(Math.floor(this.n.bitLength() / 2));
-
-  // 3.74
+  var aprxSqrt = this.n.ushrn(Math.floor(this.n.bitLength() / 2)); // 3.74
   // Run EGCD, until r(L + 1) < aprxSqrt
+
   var u = lambda;
   var v = this.n.clone();
   var x1 = new _bn.default(1);
   var y1 = new _bn.default(0);
   var x2 = new _bn.default(0);
-  var y2 = new _bn.default(1);
+  var y2 = new _bn.default(1); // NOTE: all vectors are roots of: a + b * lambda = 0 (mod n)
 
-  // NOTE: all vectors are roots of: a + b * lambda = 0 (mod n)
   var a0;
-  var b0;
-  // First vector
+  var b0; // First vector
+
   var a1;
-  var b1;
-  // Second vector
+  var b1; // Second vector
+
   var a2;
   var b2;
   var prevR;
   var i = 0;
   var r;
   var x;
+
   while (u.cmpn(0) !== 0) {
     var q = v.div(u);
     r = v.sub(q.mul(u));
     x = x2.sub(q.mul(x1));
     var y = y2.sub(q.mul(y1));
+
     if (!a1 && r.cmp(aprxSqrt) < 0) {
       a0 = prevR.neg();
       b0 = x1;
@@ -13177,6 +14772,7 @@ ShortCurve.prototype._getEndoBasis = function _getEndoBasis(lambda) {
     } else if (a1 && ++i === 2) {
       break;
     }
+
     prevR = r;
     v = u;
     u = r;
@@ -13185,24 +14781,28 @@ ShortCurve.prototype._getEndoBasis = function _getEndoBasis(lambda) {
     y2 = y1;
     y1 = y;
   }
+
   a2 = r.neg();
   b2 = x;
   var len1 = a1.sqr().add(b1.sqr());
   var len2 = a2.sqr().add(b2.sqr());
+
   if (len2.cmp(len1) >= 0) {
     a2 = a0;
     b2 = b0;
-  }
+  } // Normalize signs
 
-  // Normalize signs
+
   if (a1.negative) {
     a1 = a1.neg();
     b1 = b1.neg();
   }
+
   if (a2.negative) {
     a2 = a2.neg();
     b2 = b2.neg();
   }
+
   return [{
     a: a1,
     b: b1
@@ -13211,6 +14811,7 @@ ShortCurve.prototype._getEndoBasis = function _getEndoBasis(lambda) {
     b: b2
   }];
 };
+
 ShortCurve.prototype._endoSplit = function _endoSplit(k) {
   var basis = this.endo.basis;
   var v1 = basis[0];
@@ -13220,9 +14821,8 @@ ShortCurve.prototype._endoSplit = function _endoSplit(k) {
   var p1 = c1.mul(v1.a);
   var p2 = c2.mul(v2.a);
   var q1 = c1.mul(v1.b);
-  var q2 = c2.mul(v2.b);
+  var q2 = c2.mul(v2.b); // Calculate answer
 
-  // Calculate answer
   var k1 = k.sub(p1).sub(p2);
   var k2 = q1.add(q2).neg();
   return {
@@ -13230,19 +14830,20 @@ ShortCurve.prototype._endoSplit = function _endoSplit(k) {
     k2: k2
   };
 };
+
 ShortCurve.prototype.pointFromX = function pointFromX(x, odd) {
   x = new _bn.default(x, 16);
   if (!x.red) x = x.toRed(this.red);
   var y2 = x.redSqr().redMul(x).redIAdd(x.redMul(this.a)).redIAdd(this.b);
   var y = y2.redSqrt();
-  if (y.redSqr().redSub(y2).cmp(this.zero) !== 0) throw new Error('invalid point');
-
-  // XXX Is there any way to tell if the number is odd without converting it
+  if (y.redSqr().redSub(y2).cmp(this.zero) !== 0) throw new Error('invalid point'); // XXX Is there any way to tell if the number is odd without converting it
   // to non-red form?
+
   var isOdd = y.fromRed().isOdd();
   if (odd && !isOdd || !odd && isOdd) y = y.redNeg();
   return this.point(x, y);
 };
+
 ShortCurve.prototype.validate = function validate(point) {
   if (point.inf) return true;
   var x = point.x;
@@ -13251,71 +14852,90 @@ ShortCurve.prototype.validate = function validate(point) {
   var rhs = x.redSqr().redMul(x).redIAdd(ax).redIAdd(this.b);
   return y.redSqr().redISub(rhs).cmpn(0) === 0;
 };
+
 ShortCurve.prototype._endoWnafMulAdd = function _endoWnafMulAdd(points, coeffs, jacobianResult) {
   var npoints = this._endoWnafT1;
   var ncoeffs = this._endoWnafT2;
+
   for (var i = 0; i < points.length; i++) {
     var split = this._endoSplit(coeffs[i]);
+
     var p = points[i];
+
     var beta = p._getBeta();
+
     if (split.k1.negative) {
       split.k1.ineg();
       p = p.neg(true);
     }
+
     if (split.k2.negative) {
       split.k2.ineg();
       beta = beta.neg(true);
     }
+
     npoints[i * 2] = p;
     npoints[i * 2 + 1] = beta;
     ncoeffs[i * 2] = split.k1;
     ncoeffs[i * 2 + 1] = split.k2;
   }
-  var res = this._wnafMulAdd(1, npoints, ncoeffs, i * 2, jacobianResult);
 
-  // Clean-up references to points and coefficients
+  var res = this._wnafMulAdd(1, npoints, ncoeffs, i * 2, jacobianResult); // Clean-up references to points and coefficients
+
+
   for (var j = 0; j < i * 2; j++) {
     npoints[j] = null;
     ncoeffs[j] = null;
   }
+
   return res;
 };
+
 function Point(curve, x, y, isRed) {
   base.BasePoint.call(this, curve, 'affine');
+
   if (x === null && y === null) {
     this.x = null;
     this.y = null;
     this.inf = true;
   } else {
     this.x = new _bn.default(x, 16);
-    this.y = new _bn.default(y, 16);
-    // Force redgomery representation when loading from JSON
+    this.y = new _bn.default(y, 16); // Force redgomery representation when loading from JSON
+
     if (isRed) {
       this.x.forceRed(this.curve.red);
       this.y.forceRed(this.curve.red);
     }
+
     if (!this.x.red) this.x = this.x.toRed(this.curve.red);
     if (!this.y.red) this.y = this.y.toRed(this.curve.red);
     this.inf = false;
   }
 }
+
 inherits_browser(Point, base.BasePoint);
+
 ShortCurve.prototype.point = function point(x, y, isRed) {
   return new Point(this, x, y, isRed);
 };
+
 ShortCurve.prototype.pointFromJSON = function pointFromJSON(obj, red) {
   return Point.fromJSON(this, obj, red);
 };
+
 Point.prototype._getBeta = function _getBeta() {
   if (!this.curve.endo) return;
   var pre = this.precomputed;
   if (pre && pre.beta) return pre.beta;
   var beta = this.curve.point(this.x.redMul(this.curve.endo.beta), this.y);
+
   if (pre) {
     var curve = this.curve;
+
     var endoMul = function (p) {
       return curve.point(p.x.redMul(curve.endo.beta), p.y);
     };
+
     pre.beta = beta;
     beta.precomputed = {
       beta: null,
@@ -13329,8 +14949,10 @@ Point.prototype._getBeta = function _getBeta() {
       }
     };
   }
+
   return beta;
 };
+
 Point.prototype.toJSON = function toJSON() {
   if (!this.precomputed) return [this.x, this.y];
   return [this.x, this.y, this.precomputed && {
@@ -13344,13 +14966,16 @@ Point.prototype.toJSON = function toJSON() {
     }
   }];
 };
+
 Point.fromJSON = function fromJSON(curve, obj, red) {
   if (typeof obj === 'string') obj = JSON.parse(obj);
   var res = curve.point(obj[0], obj[1], red);
   if (!obj[2]) return res;
+
   function obj2point(obj) {
     return curve.point(obj[0], obj[1], red);
   }
+
   var pre = obj[2];
   res.precomputed = {
     beta: null,
@@ -13365,27 +14990,26 @@ Point.fromJSON = function fromJSON(curve, obj, red) {
   };
   return res;
 };
+
 Point.prototype.inspect = function inspect() {
   if (this.isInfinity()) return '<EC Point Infinity>';
   return '<EC Point x: ' + this.x.fromRed().toString(16, 2) + ' y: ' + this.y.fromRed().toString(16, 2) + '>';
 };
+
 Point.prototype.isInfinity = function isInfinity() {
   return this.inf;
 };
+
 Point.prototype.add = function add(p) {
   // O + P = P
-  if (this.inf) return p;
+  if (this.inf) return p; // P + O = P
 
-  // P + O = P
-  if (p.inf) return this;
+  if (p.inf) return this; // P + P = 2P
 
-  // P + P = 2P
-  if (this.eq(p)) return this.dbl();
+  if (this.eq(p)) return this.dbl(); // P + (-P) = O
 
-  // P + (-P) = O
-  if (this.neg().eq(p)) return this.curve.point(null, null);
+  if (this.neg().eq(p)) return this.curve.point(null, null); // P + Q = O
 
-  // P + Q = O
   if (this.x.cmp(p.x) === 0) return this.curve.point(null, null);
   var c = this.y.redSub(p.y);
   if (c.cmpn(0) !== 0) c = c.redMul(this.x.redSub(p.x).redInvm());
@@ -13393,10 +15017,10 @@ Point.prototype.add = function add(p) {
   var ny = c.redMul(this.x.redSub(nx)).redISub(this.y);
   return this.curve.point(nx, ny);
 };
-Point.prototype.dbl = function dbl() {
-  if (this.inf) return this;
 
-  // 2P = O
+Point.prototype.dbl = function dbl() {
+  if (this.inf) return this; // 2P = O
+
   var ys1 = this.y.redAdd(this.y);
   if (ys1.cmpn(0) === 0) return this.curve.point(null, null);
   var a = this.curve.a;
@@ -13407,37 +15031,47 @@ Point.prototype.dbl = function dbl() {
   var ny = c.redMul(this.x.redSub(nx)).redISub(this.y);
   return this.curve.point(nx, ny);
 };
+
 Point.prototype.getX = function getX() {
   return this.x.fromRed();
 };
+
 Point.prototype.getY = function getY() {
   return this.y.fromRed();
 };
+
 Point.prototype.mul = function mul(k) {
   k = new _bn.default(k, 16);
   if (this.isInfinity()) return this;else if (this._hasDoubles(k)) return this.curve._fixedNafMul(this, k);else if (this.curve.endo) return this.curve._endoWnafMulAdd([this], [k]);else return this.curve._wnafMul(this, k);
 };
+
 Point.prototype.mulAdd = function mulAdd(k1, p2, k2) {
   var points = [this, p2];
   var coeffs = [k1, k2];
   if (this.curve.endo) return this.curve._endoWnafMulAdd(points, coeffs);else return this.curve._wnafMulAdd(1, points, coeffs, 2);
 };
+
 Point.prototype.jmulAdd = function jmulAdd(k1, p2, k2) {
   var points = [this, p2];
   var coeffs = [k1, k2];
   if (this.curve.endo) return this.curve._endoWnafMulAdd(points, coeffs, true);else return this.curve._wnafMulAdd(1, points, coeffs, 2, true);
 };
+
 Point.prototype.eq = function eq(p) {
   return this === p || this.inf === p.inf && (this.inf || this.x.cmp(p.x) === 0 && this.y.cmp(p.y) === 0);
 };
+
 Point.prototype.neg = function neg(_precompute) {
   if (this.inf) return this;
   var res = this.curve.point(this.x, this.y.redNeg());
+
   if (_precompute && this.precomputed) {
     var pre = this.precomputed;
+
     var negate = function (p) {
       return p.neg();
     };
+
     res.precomputed = {
       naf: pre.naf && {
         wnd: pre.naf.wnd,
@@ -13449,15 +15083,19 @@ Point.prototype.neg = function neg(_precompute) {
       }
     };
   }
+
   return res;
 };
+
 Point.prototype.toJ = function toJ() {
   if (this.inf) return this.curve.jpoint(null, null, null);
   var res = this.curve.jpoint(this.x, this.y, this.curve.one);
   return res;
 };
+
 function JPoint(curve, x, y, z) {
   base.BasePoint.call(this, curve, 'jacobian');
+
   if (x === null && y === null && z === null) {
     this.x = this.curve.one;
     this.y = this.curve.one;
@@ -13467,15 +15105,19 @@ function JPoint(curve, x, y, z) {
     this.y = new _bn.default(y, 16);
     this.z = new _bn.default(z, 16);
   }
+
   if (!this.x.red) this.x = this.x.toRed(this.curve.red);
   if (!this.y.red) this.y = this.y.toRed(this.curve.red);
   if (!this.z.red) this.z = this.z.toRed(this.curve.red);
   this.zOne = this.z === this.curve.one;
 }
+
 inherits_browser(JPoint, base.BasePoint);
+
 ShortCurve.prototype.jpoint = function jpoint(x, y, z) {
   return new JPoint(this, x, y, z);
 };
+
 JPoint.prototype.toP = function toP() {
   if (this.isInfinity()) return this.curve.point(null, null);
   var zinv = this.z.redInvm();
@@ -13484,17 +15126,17 @@ JPoint.prototype.toP = function toP() {
   var ay = this.y.redMul(zinv2).redMul(zinv);
   return this.curve.point(ax, ay);
 };
+
 JPoint.prototype.neg = function neg() {
   return this.curve.jpoint(this.x, this.y.redNeg(), this.z);
 };
+
 JPoint.prototype.add = function add(p) {
   // O + P = P
-  if (this.isInfinity()) return p;
+  if (this.isInfinity()) return p; // P + O = P
 
-  // P + O = P
-  if (p.isInfinity()) return this;
+  if (p.isInfinity()) return this; // 12M + 4S + 7A
 
-  // 12M + 4S + 7A
   var pz2 = p.z.redSqr();
   var z2 = this.z.redSqr();
   var u1 = this.x.redMul(pz2);
@@ -13503,9 +15145,11 @@ JPoint.prototype.add = function add(p) {
   var s2 = p.y.redMul(z2.redMul(this.z));
   var h = u1.redSub(u2);
   var r = s1.redSub(s2);
+
   if (h.cmpn(0) === 0) {
     if (r.cmpn(0) !== 0) return this.curve.jpoint(null, null, null);else return this.dbl();
   }
+
   var h2 = h.redSqr();
   var h3 = h2.redMul(h);
   var v = u1.redMul(h2);
@@ -13514,14 +15158,13 @@ JPoint.prototype.add = function add(p) {
   var nz = this.z.redMul(p.z).redMul(h);
   return this.curve.jpoint(nx, ny, nz);
 };
+
 JPoint.prototype.mixedAdd = function mixedAdd(p) {
   // O + P = P
-  if (this.isInfinity()) return p.toJ();
+  if (this.isInfinity()) return p.toJ(); // P + O = P
 
-  // P + O = P
-  if (p.isInfinity()) return this;
+  if (p.isInfinity()) return this; // 8M + 3S + 7A
 
-  // 8M + 3S + 7A
   var z2 = this.z.redSqr();
   var u1 = this.x;
   var u2 = p.x.redMul(z2);
@@ -13529,9 +15172,11 @@ JPoint.prototype.mixedAdd = function mixedAdd(p) {
   var s2 = p.y.redMul(z2).redMul(this.z);
   var h = u1.redSub(u2);
   var r = s1.redSub(s2);
+
   if (h.cmpn(0) === 0) {
     if (r.cmpn(0) !== 0) return this.curve.jpoint(null, null, null);else return this.dbl();
   }
+
   var h2 = h.redSqr();
   var h3 = h2.redMul(h);
   var v = u1.redMul(h2);
@@ -13540,28 +15185,32 @@ JPoint.prototype.mixedAdd = function mixedAdd(p) {
   var nz = this.z.redMul(h);
   return this.curve.jpoint(nx, ny, nz);
 };
+
 JPoint.prototype.dblp = function dblp(pow) {
   if (pow === 0) return this;
   if (this.isInfinity()) return this;
   if (!pow) return this.dbl();
   var i;
+
   if (this.curve.zeroA || this.curve.threeA) {
     var r = this;
-    for (i = 0; i < pow; i++) r = r.dbl();
-    return r;
-  }
 
-  // 1M + 2S + 1A + N * (4S + 5M + 8A)
+    for (i = 0; i < pow; i++) r = r.dbl();
+
+    return r;
+  } // 1M + 2S + 1A + N * (4S + 5M + 8A)
   // N = 1 => 6M + 6S + 9A
+
+
   var a = this.curve.a;
   var tinv = this.curve.tinv;
   var jx = this.x;
   var jy = this.y;
   var jz = this.z;
-  var jz4 = jz.redSqr().redSqr();
+  var jz4 = jz.redSqr().redSqr(); // Reuse results
 
-  // Reuse results
   var jyd = jy.redAdd(jy);
+
   for (i = 0; i < pow; i++) {
     var jx2 = jx.redSqr();
     var jyd2 = jyd.redSqr();
@@ -13578,146 +15227,144 @@ JPoint.prototype.dblp = function dblp(pow) {
     jz = nz;
     jyd = dny;
   }
+
   return this.curve.jpoint(jx, jyd.redMul(tinv), jz);
 };
+
 JPoint.prototype.dbl = function dbl() {
   if (this.isInfinity()) return this;
   if (this.curve.zeroA) return this._zeroDbl();else if (this.curve.threeA) return this._threeDbl();else return this._dbl();
 };
+
 JPoint.prototype._zeroDbl = function _zeroDbl() {
   var nx;
   var ny;
-  var nz;
-  // Z = 1
+  var nz; // Z = 1
+
   if (this.zOne) {
     // hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html
     //     #doubling-mdbl-2007-bl
     // 1M + 5S + 14A
-
     // XX = X1^2
-    var xx = this.x.redSqr();
-    // YY = Y1^2
-    var yy = this.y.redSqr();
-    // YYYY = YY^2
-    var yyyy = yy.redSqr();
-    // S = 2 * ((X1 + YY)^2 - XX - YYYY)
-    var s = this.x.redAdd(yy).redSqr().redISub(xx).redISub(yyyy);
-    s = s.redIAdd(s);
-    // M = 3 * XX + a; a = 0
-    var m = xx.redAdd(xx).redIAdd(xx);
-    // T = M ^ 2 - 2*S
-    var t = m.redSqr().redISub(s).redISub(s);
+    var xx = this.x.redSqr(); // YY = Y1^2
 
-    // 8 * YYYY
+    var yy = this.y.redSqr(); // YYYY = YY^2
+
+    var yyyy = yy.redSqr(); // S = 2 * ((X1 + YY)^2 - XX - YYYY)
+
+    var s = this.x.redAdd(yy).redSqr().redISub(xx).redISub(yyyy);
+    s = s.redIAdd(s); // M = 3 * XX + a; a = 0
+
+    var m = xx.redAdd(xx).redIAdd(xx); // T = M ^ 2 - 2*S
+
+    var t = m.redSqr().redISub(s).redISub(s); // 8 * YYYY
+
     var yyyy8 = yyyy.redIAdd(yyyy);
     yyyy8 = yyyy8.redIAdd(yyyy8);
-    yyyy8 = yyyy8.redIAdd(yyyy8);
+    yyyy8 = yyyy8.redIAdd(yyyy8); // X3 = T
 
-    // X3 = T
-    nx = t;
-    // Y3 = M * (S - T) - 8 * YYYY
-    ny = m.redMul(s.redISub(t)).redISub(yyyy8);
-    // Z3 = 2*Y1
+    nx = t; // Y3 = M * (S - T) - 8 * YYYY
+
+    ny = m.redMul(s.redISub(t)).redISub(yyyy8); // Z3 = 2*Y1
+
     nz = this.y.redAdd(this.y);
   } else {
     // hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html
     //     #doubling-dbl-2009-l
     // 2M + 5S + 13A
-
     // A = X1^2
-    var a = this.x.redSqr();
-    // B = Y1^2
-    var b = this.y.redSqr();
-    // C = B^2
-    var c = b.redSqr();
-    // D = 2 * ((X1 + B)^2 - A - C)
-    var d = this.x.redAdd(b).redSqr().redISub(a).redISub(c);
-    d = d.redIAdd(d);
-    // E = 3 * A
-    var e = a.redAdd(a).redIAdd(a);
-    // F = E^2
-    var f = e.redSqr();
+    var a = this.x.redSqr(); // B = Y1^2
 
-    // 8 * C
+    var b = this.y.redSqr(); // C = B^2
+
+    var c = b.redSqr(); // D = 2 * ((X1 + B)^2 - A - C)
+
+    var d = this.x.redAdd(b).redSqr().redISub(a).redISub(c);
+    d = d.redIAdd(d); // E = 3 * A
+
+    var e = a.redAdd(a).redIAdd(a); // F = E^2
+
+    var f = e.redSqr(); // 8 * C
+
     var c8 = c.redIAdd(c);
     c8 = c8.redIAdd(c8);
-    c8 = c8.redIAdd(c8);
+    c8 = c8.redIAdd(c8); // X3 = F - 2 * D
 
-    // X3 = F - 2 * D
-    nx = f.redISub(d).redISub(d);
-    // Y3 = E * (D - X3) - 8 * C
-    ny = e.redMul(d.redISub(nx)).redISub(c8);
-    // Z3 = 2 * Y1 * Z1
+    nx = f.redISub(d).redISub(d); // Y3 = E * (D - X3) - 8 * C
+
+    ny = e.redMul(d.redISub(nx)).redISub(c8); // Z3 = 2 * Y1 * Z1
+
     nz = this.y.redMul(this.z);
     nz = nz.redIAdd(nz);
   }
+
   return this.curve.jpoint(nx, ny, nz);
 };
+
 JPoint.prototype._threeDbl = function _threeDbl() {
   var nx;
   var ny;
-  var nz;
-  // Z = 1
+  var nz; // Z = 1
+
   if (this.zOne) {
     // hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-3.html
     //     #doubling-mdbl-2007-bl
     // 1M + 5S + 15A
-
     // XX = X1^2
-    var xx = this.x.redSqr();
-    // YY = Y1^2
-    var yy = this.y.redSqr();
-    // YYYY = YY^2
-    var yyyy = yy.redSqr();
-    // S = 2 * ((X1 + YY)^2 - XX - YYYY)
+    var xx = this.x.redSqr(); // YY = Y1^2
+
+    var yy = this.y.redSqr(); // YYYY = YY^2
+
+    var yyyy = yy.redSqr(); // S = 2 * ((X1 + YY)^2 - XX - YYYY)
+
     var s = this.x.redAdd(yy).redSqr().redISub(xx).redISub(yyyy);
-    s = s.redIAdd(s);
-    // M = 3 * XX + a
-    var m = xx.redAdd(xx).redIAdd(xx).redIAdd(this.curve.a);
-    // T = M^2 - 2 * S
-    var t = m.redSqr().redISub(s).redISub(s);
-    // X3 = T
-    nx = t;
-    // Y3 = M * (S - T) - 8 * YYYY
+    s = s.redIAdd(s); // M = 3 * XX + a
+
+    var m = xx.redAdd(xx).redIAdd(xx).redIAdd(this.curve.a); // T = M^2 - 2 * S
+
+    var t = m.redSqr().redISub(s).redISub(s); // X3 = T
+
+    nx = t; // Y3 = M * (S - T) - 8 * YYYY
+
     var yyyy8 = yyyy.redIAdd(yyyy);
     yyyy8 = yyyy8.redIAdd(yyyy8);
     yyyy8 = yyyy8.redIAdd(yyyy8);
-    ny = m.redMul(s.redISub(t)).redISub(yyyy8);
-    // Z3 = 2 * Y1
+    ny = m.redMul(s.redISub(t)).redISub(yyyy8); // Z3 = 2 * Y1
+
     nz = this.y.redAdd(this.y);
   } else {
     // hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-3.html#doubling-dbl-2001-b
     // 3M + 5S
-
     // delta = Z1^2
-    var delta = this.z.redSqr();
-    // gamma = Y1^2
-    var gamma = this.y.redSqr();
-    // beta = X1 * gamma
-    var beta = this.x.redMul(gamma);
-    // alpha = 3 * (X1 - delta) * (X1 + delta)
+    var delta = this.z.redSqr(); // gamma = Y1^2
+
+    var gamma = this.y.redSqr(); // beta = X1 * gamma
+
+    var beta = this.x.redMul(gamma); // alpha = 3 * (X1 - delta) * (X1 + delta)
+
     var alpha = this.x.redSub(delta).redMul(this.x.redAdd(delta));
-    alpha = alpha.redAdd(alpha).redIAdd(alpha);
-    // X3 = alpha^2 - 8 * beta
+    alpha = alpha.redAdd(alpha).redIAdd(alpha); // X3 = alpha^2 - 8 * beta
+
     var beta4 = beta.redIAdd(beta);
     beta4 = beta4.redIAdd(beta4);
     var beta8 = beta4.redAdd(beta4);
-    nx = alpha.redSqr().redISub(beta8);
-    // Z3 = (Y1 + Z1)^2 - gamma - delta
-    nz = this.y.redAdd(this.z).redSqr().redISub(gamma).redISub(delta);
-    // Y3 = alpha * (4 * beta - X3) - 8 * gamma^2
+    nx = alpha.redSqr().redISub(beta8); // Z3 = (Y1 + Z1)^2 - gamma - delta
+
+    nz = this.y.redAdd(this.z).redSqr().redISub(gamma).redISub(delta); // Y3 = alpha * (4 * beta - X3) - 8 * gamma^2
+
     var ggamma8 = gamma.redSqr();
     ggamma8 = ggamma8.redIAdd(ggamma8);
     ggamma8 = ggamma8.redIAdd(ggamma8);
     ggamma8 = ggamma8.redIAdd(ggamma8);
     ny = alpha.redMul(beta4.redISub(nx)).redISub(ggamma8);
   }
+
   return this.curve.jpoint(nx, ny, nz);
 };
-JPoint.prototype._dbl = function _dbl() {
-  var a = this.curve.a;
 
-  // 4M + 6S + 10A
+JPoint.prototype._dbl = function _dbl() {
+  var a = this.curve.a; // 4M + 6S + 10A
+
   var jx = this.x;
   var jy = this.y;
   var jz = this.z;
@@ -13738,78 +15385,79 @@ JPoint.prototype._dbl = function _dbl() {
   var nz = jy.redAdd(jy).redMul(jz);
   return this.curve.jpoint(nx, ny, nz);
 };
+
 JPoint.prototype.trpl = function trpl() {
-  if (!this.curve.zeroA) return this.dbl().add(this);
-
-  // hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#tripling-tpl-2007-bl
+  if (!this.curve.zeroA) return this.dbl().add(this); // hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#tripling-tpl-2007-bl
   // 5M + 10S + ...
-
   // XX = X1^2
-  var xx = this.x.redSqr();
-  // YY = Y1^2
-  var yy = this.y.redSqr();
-  // ZZ = Z1^2
-  var zz = this.z.redSqr();
-  // YYYY = YY^2
-  var yyyy = yy.redSqr();
-  // M = 3 * XX + a * ZZ2; a = 0
-  var m = xx.redAdd(xx).redIAdd(xx);
-  // MM = M^2
-  var mm = m.redSqr();
-  // E = 6 * ((X1 + YY)^2 - XX - YYYY) - MM
+
+  var xx = this.x.redSqr(); // YY = Y1^2
+
+  var yy = this.y.redSqr(); // ZZ = Z1^2
+
+  var zz = this.z.redSqr(); // YYYY = YY^2
+
+  var yyyy = yy.redSqr(); // M = 3 * XX + a * ZZ2; a = 0
+
+  var m = xx.redAdd(xx).redIAdd(xx); // MM = M^2
+
+  var mm = m.redSqr(); // E = 6 * ((X1 + YY)^2 - XX - YYYY) - MM
+
   var e = this.x.redAdd(yy).redSqr().redISub(xx).redISub(yyyy);
   e = e.redIAdd(e);
   e = e.redAdd(e).redIAdd(e);
-  e = e.redISub(mm);
-  // EE = E^2
-  var ee = e.redSqr();
-  // T = 16*YYYY
+  e = e.redISub(mm); // EE = E^2
+
+  var ee = e.redSqr(); // T = 16*YYYY
+
   var t = yyyy.redIAdd(yyyy);
   t = t.redIAdd(t);
   t = t.redIAdd(t);
-  t = t.redIAdd(t);
-  // U = (M + E)^2 - MM - EE - T
-  var u = m.redIAdd(e).redSqr().redISub(mm).redISub(ee).redISub(t);
-  // X3 = 4 * (X1 * EE - 4 * YY * U)
+  t = t.redIAdd(t); // U = (M + E)^2 - MM - EE - T
+
+  var u = m.redIAdd(e).redSqr().redISub(mm).redISub(ee).redISub(t); // X3 = 4 * (X1 * EE - 4 * YY * U)
+
   var yyu4 = yy.redMul(u);
   yyu4 = yyu4.redIAdd(yyu4);
   yyu4 = yyu4.redIAdd(yyu4);
   var nx = this.x.redMul(ee).redISub(yyu4);
   nx = nx.redIAdd(nx);
-  nx = nx.redIAdd(nx);
-  // Y3 = 8 * Y1 * (U * (T - U) - E * EE)
+  nx = nx.redIAdd(nx); // Y3 = 8 * Y1 * (U * (T - U) - E * EE)
+
   var ny = this.y.redMul(u.redMul(t.redISub(u)).redISub(e.redMul(ee)));
   ny = ny.redIAdd(ny);
   ny = ny.redIAdd(ny);
-  ny = ny.redIAdd(ny);
-  // Z3 = (Z1 + E)^2 - ZZ - EE
+  ny = ny.redIAdd(ny); // Z3 = (Z1 + E)^2 - ZZ - EE
+
   var nz = this.z.redAdd(e).redSqr().redISub(zz).redISub(ee);
   return this.curve.jpoint(nx, ny, nz);
 };
+
 JPoint.prototype.mul = function mul(k, kbase) {
   k = new _bn.default(k, kbase);
   return this.curve._wnafMul(this, k);
 };
+
 JPoint.prototype.eq = function eq(p) {
   if (p.type === 'affine') return this.eq(p.toJ());
-  if (this === p) return true;
+  if (this === p) return true; // x1 * z2^2 == x2 * z1^2
 
-  // x1 * z2^2 == x2 * z1^2
   var z2 = this.z.redSqr();
   var pz2 = p.z.redSqr();
-  if (this.x.redMul(pz2).redISub(p.x.redMul(z2)).cmpn(0) !== 0) return false;
+  if (this.x.redMul(pz2).redISub(p.x.redMul(z2)).cmpn(0) !== 0) return false; // y1 * z2^3 == y2 * z1^3
 
-  // y1 * z2^3 == y2 * z1^3
   var z3 = z2.redMul(this.z);
   var pz3 = pz2.redMul(p.z);
   return this.y.redMul(pz3).redISub(p.y.redMul(z3)).cmpn(0) === 0;
 };
+
 JPoint.prototype.eqXToP = function eqXToP(x) {
   var zs = this.z.redSqr();
   var rx = x.toRed(this.curve.red).redMul(zs);
   if (this.x.cmp(rx) === 0) return true;
   var xc = x.clone();
   var t = this.curve.redN.redMul(zs);
+
   for (;;) {
     xc.iadd(this.curve.n);
     if (xc.cmp(this.curve.p) >= 0) return false;
@@ -13817,28 +15465,36 @@ JPoint.prototype.eqXToP = function eqXToP(x) {
     if (this.x.cmp(rx) === 0) return true;
   }
 };
+
 JPoint.prototype.inspect = function inspect() {
   if (this.isInfinity()) return '<EC JPoint Infinity>';
   return '<EC JPoint x: ' + this.x.toString(16, 2) + ' y: ' + this.y.toString(16, 2) + ' z: ' + this.z.toString(16, 2) + '>';
 };
+
 JPoint.prototype.isInfinity = function isInfinity() {
   // XXX This code assumes that zero is always zero in red
   return this.z.cmpn(0) === 0;
 };
+
 var curve_1 = createCommonjsModule(function (module, exports) {
   'use strict';
 
   var curve = exports;
   curve.base = base;
   curve.short = short_1;
-  curve.mont = /*RicMoo:ethers:require(./mont)*/null;
-  curve.edwards = /*RicMoo:ethers:require(./edwards)*/null;
+  curve.mont =
+  /*RicMoo:ethers:require(./mont)*/
+  null;
+  curve.edwards =
+  /*RicMoo:ethers:require(./edwards)*/
+  null;
 });
 var curves_1 = createCommonjsModule(function (module, exports) {
   'use strict';
 
   var curves = exports;
   var assert = utils_1$1.assert;
+
   function PresetCurve(options) {
     if (options.type === 'short') this.curve = new curve_1.short(options);else if (options.type === 'edwards') this.curve = new curve_1.edwards(options);else this.curve = new curve_1.mont(options);
     this.g = this.curve.g;
@@ -13847,7 +15503,9 @@ var curves_1 = createCommonjsModule(function (module, exports) {
     assert(this.g.validate(), 'Invalid curve');
     assert(this.g.mul(this.n).isInfinity(), 'Invalid curve, G*N != O');
   }
+
   curves.PresetCurve = PresetCurve;
+
   function defineCurve(name, options) {
     Object.defineProperty(curves, name, {
       configurable: true,
@@ -13863,6 +15521,7 @@ var curves_1 = createCommonjsModule(function (module, exports) {
       }
     });
   }
+
   defineCurve('p192', {
     type: 'short',
     prime: 'p192',
@@ -13940,16 +15599,19 @@ var curves_1 = createCommonjsModule(function (module, exports) {
     n: '1000000000000000 0000000000000000 14def9dea2f79cd6 5812631a5cf5d3ed',
     hash: _hash.default.sha256,
     gRed: false,
-    g: ['216936d3cd6e53fec0a4e231fdd6dc5c692cc7609525a7b2c9562d608f25d51a',
-    // 4/5
+    g: ['216936d3cd6e53fec0a4e231fdd6dc5c692cc7609525a7b2c9562d608f25d51a', // 4/5
     '6666666666666666666666666666666666666666666666666666666666666658']
   });
   var pre;
+
   try {
-    pre = /*RicMoo:ethers:require(./precomputed/secp256k1)*/null.crash();
+    pre =
+    /*RicMoo:ethers:require(./precomputed/secp256k1)*/
+    null.crash();
   } catch (e) {
     pre = undefined;
   }
+
   defineCurve('secp256k1', {
     type: 'short',
     prime: 'k256',
@@ -13974,6 +15636,7 @@ var curves_1 = createCommonjsModule(function (module, exports) {
   });
 });
 'use strict';
+
 function HmacDRBG(options) {
   if (!(this instanceof HmacDRBG)) return new HmacDRBG(options);
   this.hash = options.hash;
@@ -13988,18 +15651,24 @@ function HmacDRBG(options) {
   var nonce = utils_1.toArray(options.nonce, options.nonceEnc || 'hex');
   var pers = utils_1.toArray(options.pers, options.persEnc || 'hex');
   minimalisticAssert(entropy.length >= this.minEntropy / 8, 'Not enough entropy. Minimum is: ' + this.minEntropy + ' bits');
+
   this._init(entropy, nonce, pers);
 }
+
 var hmacDrbg = HmacDRBG;
+
 HmacDRBG.prototype._init = function init(entropy, nonce, pers) {
   var seed = entropy.concat(nonce).concat(pers);
   this.K = new Array(this.outLen / 8);
   this.V = new Array(this.outLen / 8);
+
   for (var i = 0; i < this.V.length; i++) {
     this.K[i] = 0x00;
     this.V[i] = 0x01;
   }
+
   this._update(seed);
+
   this._reseed = 1;
   this.reseedInterval = 0x1000000000000; // 2^48
 };
@@ -14007,8 +15676,10 @@ HmacDRBG.prototype._init = function init(entropy, nonce, pers) {
 HmacDRBG.prototype._hmac = function hmac() {
   return new _hash.default.hmac(this.hash, this.K);
 };
+
 HmacDRBG.prototype._update = function update(seed) {
   var kmac = this._hmac().update(this.V).update([0x00]);
+
   if (seed) kmac = kmac.update(seed);
   this.K = kmac.digest();
   this.V = this._hmac().update(this.V).digest();
@@ -14016,6 +15687,7 @@ HmacDRBG.prototype._update = function update(seed) {
   this.K = this._hmac().update(this.V).update([0x01]).update(seed).digest();
   this.V = this._hmac().update(this.V).digest();
 };
+
 HmacDRBG.prototype.reseed = function reseed(entropy, entropyEnc, add, addEnc) {
   // Optional entropy enc
   if (typeof entropyEnc !== 'string') {
@@ -14023,49 +15695,62 @@ HmacDRBG.prototype.reseed = function reseed(entropy, entropyEnc, add, addEnc) {
     add = entropyEnc;
     entropyEnc = null;
   }
+
   entropy = utils_1.toArray(entropy, entropyEnc);
   add = utils_1.toArray(add, addEnc);
   minimalisticAssert(entropy.length >= this.minEntropy / 8, 'Not enough entropy. Minimum is: ' + this.minEntropy + ' bits');
+
   this._update(entropy.concat(add || []));
+
   this._reseed = 1;
 };
-HmacDRBG.prototype.generate = function generate(len, enc, add, addEnc) {
-  if (this._reseed > this.reseedInterval) throw new Error('Reseed is required');
 
-  // Optional encoding
+HmacDRBG.prototype.generate = function generate(len, enc, add, addEnc) {
+  if (this._reseed > this.reseedInterval) throw new Error('Reseed is required'); // Optional encoding
+
   if (typeof enc !== 'string') {
     addEnc = add;
     add = enc;
     enc = null;
-  }
+  } // Optional additional data
 
-  // Optional additional data
+
   if (add) {
     add = utils_1.toArray(add, addEnc || 'hex');
+
     this._update(add);
   }
+
   var temp = [];
+
   while (temp.length < len) {
     this.V = this._hmac().update(this.V).digest();
     temp = temp.concat(this.V);
   }
+
   var res = temp.slice(0, len);
+
   this._update(add);
+
   this._reseed++;
   return utils_1.encode(res, enc);
 };
+
 'use strict';
+
 var assert$3 = utils_1$1.assert;
+
 function KeyPair(ec, options) {
   this.ec = ec;
   this.priv = null;
-  this.pub = null;
+  this.pub = null; // KeyPair(ec, { priv: ..., pub: ... })
 
-  // KeyPair(ec, { priv: ..., pub: ... })
   if (options.priv) this._importPrivate(options.priv, options.privEnc);
   if (options.pub) this._importPublic(options.pub, options.pubEnc);
 }
+
 var key = KeyPair;
+
 KeyPair.fromPublic = function fromPublic(ec, pub, enc) {
   if (pub instanceof KeyPair) return pub;
   return new KeyPair(ec, {
@@ -14073,6 +15758,7 @@ KeyPair.fromPublic = function fromPublic(ec, pub, enc) {
     pubEnc: enc
   });
 };
+
 KeyPair.fromPrivate = function fromPrivate(ec, priv, enc) {
   if (priv instanceof KeyPair) return priv;
   return new KeyPair(ec, {
@@ -14080,6 +15766,7 @@ KeyPair.fromPrivate = function fromPrivate(ec, priv, enc) {
     privEnc: enc
   });
 };
+
 KeyPair.prototype.validate = function validate() {
   var pub = this.getPublic();
   if (pub.isInfinity()) return {
@@ -14099,26 +15786,30 @@ KeyPair.prototype.validate = function validate() {
     reason: null
   };
 };
+
 KeyPair.prototype.getPublic = function getPublic(compact, enc) {
   // compact is optional argument
   if (typeof compact === 'string') {
     enc = compact;
     compact = null;
   }
+
   if (!this.pub) this.pub = this.ec.g.mul(this.priv);
   if (!enc) return this.pub;
   return this.pub.encode(enc, compact);
 };
+
 KeyPair.prototype.getPrivate = function getPrivate(enc) {
   if (enc === 'hex') return this.priv.toString(16, 2);else return this.priv;
 };
-KeyPair.prototype._importPrivate = function _importPrivate(key, enc) {
-  this.priv = new _bn.default(key, enc || 16);
 
-  // Ensure that the priv won't be bigger than n, otherwise we may fail
+KeyPair.prototype._importPrivate = function _importPrivate(key, enc) {
+  this.priv = new _bn.default(key, enc || 16); // Ensure that the priv won't be bigger than n, otherwise we may fail
   // in fixed multiplication method
+
   this.priv = this.priv.umod(this.ec.curve.n);
 };
+
 KeyPair.prototype._importPublic = function _importPublic(key, enc) {
   if (key.x || key.y) {
     // Montgomery points only have an `x` coordinate.
@@ -14129,32 +15820,40 @@ KeyPair.prototype._importPublic = function _importPublic(key, enc) {
     } else if (this.ec.curve.type === 'short' || this.ec.curve.type === 'edwards') {
       assert$3(key.x && key.y, 'Need both x and y coordinate');
     }
+
     this.pub = this.ec.curve.point(key.x, key.y);
     return;
   }
-  this.pub = this.ec.curve.decodePoint(key, enc);
-};
 
-// ECDH
+  this.pub = this.ec.curve.decodePoint(key, enc);
+}; // ECDH
+
+
 KeyPair.prototype.derive = function derive(pub) {
   if (!pub.validate()) {
     assert$3(pub.validate(), 'public point not validated');
   }
-  return pub.mul(this.priv).getX();
-};
 
-// ECDSA
+  return pub.mul(this.priv).getX();
+}; // ECDSA
+
+
 KeyPair.prototype.sign = function sign(msg, enc, options) {
   return this.ec.sign(msg, this, enc, options);
 };
+
 KeyPair.prototype.verify = function verify(msg, signature) {
   return this.ec.verify(msg, signature, this);
 };
+
 KeyPair.prototype.inspect = function inspect() {
   return '<Key priv: ' + (this.priv && this.priv.toString(16, 2)) + ' pub: ' + (this.pub && this.pub.inspect()) + ' >';
 };
+
 'use strict';
+
 var assert$4 = utils_1$1.assert;
+
 function Signature(options, enc) {
   if (options instanceof Signature) return options;
   if (this._importDER(options, enc)) return;
@@ -14163,79 +15862,105 @@ function Signature(options, enc) {
   this.s = new _bn.default(options.s, 16);
   if (options.recoveryParam === undefined) this.recoveryParam = null;else this.recoveryParam = options.recoveryParam;
 }
+
 var signature = Signature;
+
 function Position() {
   this.place = 0;
 }
+
 function getLength(buf, p) {
   var initial = buf[p.place++];
+
   if (!(initial & 0x80)) {
     return initial;
   }
-  var octetLen = initial & 0xf;
 
-  // Indefinite length or overflow
+  var octetLen = initial & 0xf; // Indefinite length or overflow
+
   if (octetLen === 0 || octetLen > 4) {
     return false;
   }
+
   var val = 0;
+
   for (var i = 0, off = p.place; i < octetLen; i++, off++) {
     val <<= 8;
     val |= buf[off];
     val >>>= 0;
-  }
+  } // Leading zeroes
 
-  // Leading zeroes
+
   if (val <= 0x7f) {
     return false;
   }
+
   p.place = off;
   return val;
 }
+
 function rmPadding(buf) {
   var i = 0;
   var len = buf.length - 1;
+
   while (!buf[i] && !(buf[i + 1] & 0x80) && i < len) {
     i++;
   }
+
   if (i === 0) {
     return buf;
   }
+
   return buf.slice(i);
 }
+
 Signature.prototype._importDER = function _importDER(data, enc) {
   data = utils_1$1.toArray(data, enc);
   var p = new Position();
+
   if (data[p.place++] !== 0x30) {
     return false;
   }
+
   var len = getLength(data, p);
+
   if (len === false) {
     return false;
   }
+
   if (len + p.place !== data.length) {
     return false;
   }
+
   if (data[p.place++] !== 0x02) {
     return false;
   }
+
   var rlen = getLength(data, p);
+
   if (rlen === false) {
     return false;
   }
+
   var r = data.slice(p.place, rlen + p.place);
   p.place += rlen;
+
   if (data[p.place++] !== 0x02) {
     return false;
   }
+
   var slen = getLength(data, p);
+
   if (slen === false) {
     return false;
   }
+
   if (data.length !== slen + p.place) {
     return false;
   }
+
   var s = data.slice(p.place, slen + p.place);
+
   if (r[0] === 0) {
     if (r[1] & 0x80) {
       r = r.slice(1);
@@ -14244,6 +15969,7 @@ Signature.prototype._importDER = function _importDER(data, enc) {
       return false;
     }
   }
+
   if (s[0] === 0) {
     if (s[1] & 0x80) {
       s = s.slice(1);
@@ -14252,36 +15978,43 @@ Signature.prototype._importDER = function _importDER(data, enc) {
       return false;
     }
   }
+
   this.r = new _bn.default(r);
   this.s = new _bn.default(s);
   this.recoveryParam = null;
   return true;
 };
+
 function constructLength(arr, len) {
   if (len < 0x80) {
     arr.push(len);
     return;
   }
+
   var octets = 1 + (Math.log(len) / Math.LN2 >>> 3);
   arr.push(octets | 0x80);
+
   while (--octets) {
     arr.push(len >>> (octets << 3) & 0xff);
   }
+
   arr.push(len);
 }
+
 Signature.prototype.toDER = function toDER(enc) {
   var r = this.r.toArray();
-  var s = this.s.toArray();
+  var s = this.s.toArray(); // Pad values
 
-  // Pad values
-  if (r[0] & 0x80) r = [0].concat(r);
-  // Pad values
+  if (r[0] & 0x80) r = [0].concat(r); // Pad values
+
   if (s[0] & 0x80) s = [0].concat(s);
   r = rmPadding(r);
   s = rmPadding(s);
+
   while (!s[0] && !(s[1] & 0x80)) {
     s = s.slice(1);
   }
+
   var arr = [0x02];
   constructLength(arr, r.length);
   arr = arr.concat(r);
@@ -14293,50 +16026,57 @@ Signature.prototype.toDER = function toDER(enc) {
   res = res.concat(backHalf);
   return utils_1$1.encode(res, enc);
 };
+
 'use strict';
-var rand = /*RicMoo:ethers:require(brorand)*/function () {
+
+var rand =
+/*RicMoo:ethers:require(brorand)*/
+function () {
   throw new Error('unsupported');
 };
-var assert$5 = utils_1$1.assert;
-function EC(options) {
-  if (!(this instanceof EC)) return new EC(options);
 
-  // Shortcut `elliptic.ec(curve-name)`
+var assert$5 = utils_1$1.assert;
+
+function EC(options) {
+  if (!(this instanceof EC)) return new EC(options); // Shortcut `elliptic.ec(curve-name)`
+
   if (typeof options === 'string') {
     assert$5(Object.prototype.hasOwnProperty.call(curves_1, options), 'Unknown curve ' + options);
     options = curves_1[options];
-  }
+  } // Shortcut for `elliptic.ec(elliptic.curves.curveName)`
 
-  // Shortcut for `elliptic.ec(elliptic.curves.curveName)`
+
   if (options instanceof curves_1.PresetCurve) options = {
     curve: options
   };
   this.curve = options.curve.curve;
   this.n = this.curve.n;
   this.nh = this.n.ushrn(1);
-  this.g = this.curve.g;
+  this.g = this.curve.g; // Point on curve
 
-  // Point on curve
   this.g = options.curve.g;
-  this.g.precompute(options.curve.n.bitLength() + 1);
+  this.g.precompute(options.curve.n.bitLength() + 1); // Hash for function for DRBG
 
-  // Hash for function for DRBG
   this.hash = options.hash || options.curve.hash;
 }
+
 var ec = EC;
+
 EC.prototype.keyPair = function keyPair(options) {
   return new key(this, options);
 };
+
 EC.prototype.keyFromPrivate = function keyFromPrivate(priv, enc) {
   return key.fromPrivate(this, priv, enc);
 };
+
 EC.prototype.keyFromPublic = function keyFromPublic(pub, enc) {
   return key.fromPublic(this, pub, enc);
 };
-EC.prototype.genKeyPair = function genKeyPair(options) {
-  if (!options) options = {};
 
-  // Instantiate Hmac_DRBG
+EC.prototype.genKeyPair = function genKeyPair(options) {
+  if (!options) options = {}; // Instantiate Hmac_DRBG
+
   var drbg = new hmacDrbg({
     hash: this.hash,
     pers: options.pers,
@@ -14347,6 +16087,7 @@ EC.prototype.genKeyPair = function genKeyPair(options) {
   });
   var bytes = this.n.byteLength();
   var ns2 = this.n.sub(new _bn.default(2));
+
   for (;;) {
     var priv = new _bn.default(drbg.generate(bytes));
     if (priv.cmp(ns2) > 0) continue;
@@ -14354,38 +16095,38 @@ EC.prototype.genKeyPair = function genKeyPair(options) {
     return this.keyFromPrivate(priv);
   }
 };
+
 EC.prototype._truncateToN = function _truncateToN(msg, truncOnly) {
   var delta = msg.byteLength() * 8 - this.n.bitLength();
   if (delta > 0) msg = msg.ushrn(delta);
   if (!truncOnly && msg.cmp(this.n) >= 0) return msg.sub(this.n);else return msg;
 };
+
 EC.prototype.sign = function sign(msg, key, enc, options) {
   if (typeof enc === 'object') {
     options = enc;
     enc = null;
   }
+
   if (!options) options = {};
   key = this.keyFromPrivate(key, enc);
-  msg = this._truncateToN(new _bn.default(msg, 16));
+  msg = this._truncateToN(new _bn.default(msg, 16)); // Zero-extend key to provide enough entropy
 
-  // Zero-extend key to provide enough entropy
   var bytes = this.n.byteLength();
-  var bkey = key.getPrivate().toArray('be', bytes);
+  var bkey = key.getPrivate().toArray('be', bytes); // Zero-extend nonce to have the same byte size as N
 
-  // Zero-extend nonce to have the same byte size as N
-  var nonce = msg.toArray('be', bytes);
+  var nonce = msg.toArray('be', bytes); // Instantiate Hmac_DRBG
 
-  // Instantiate Hmac_DRBG
   var drbg = new hmacDrbg({
     hash: this.hash,
     entropy: bkey,
     nonce: nonce,
     pers: options.pers,
     persEnc: options.persEnc || 'utf8'
-  });
+  }); // Number of bytes to generate
 
-  // Number of bytes to generate
   var ns1 = this.n.sub(new _bn.default(1));
+
   for (var iter = 0;; iter++) {
     var k = options.k ? options.k(iter) : new _bn.default(drbg.generate(this.n.byteLength()));
     k = this._truncateToN(k, true);
@@ -14398,13 +16139,13 @@ EC.prototype.sign = function sign(msg, key, enc, options) {
     var s = k.invm(this.n).mul(r.mul(key.getPrivate()).iadd(msg));
     s = s.umod(this.n);
     if (s.cmpn(0) === 0) continue;
-    var recoveryParam = (kp.getY().isOdd() ? 1 : 0) | (kpX.cmp(r) !== 0 ? 2 : 0);
+    var recoveryParam = (kp.getY().isOdd() ? 1 : 0) | (kpX.cmp(r) !== 0 ? 2 : 0); // Use complement of `s`, if it is > `n / 2`
 
-    // Use complement of `s`, if it is > `n / 2`
     if (options.canonical && s.cmp(this.nh) > 0) {
       s = this.n.sub(s);
       recoveryParam ^= 1;
     }
+
     return new signature({
       r: r,
       s: s,
@@ -14412,93 +16153,102 @@ EC.prototype.sign = function sign(msg, key, enc, options) {
     });
   }
 };
+
 EC.prototype.verify = function verify(msg, signature$1, key, enc) {
   msg = this._truncateToN(new _bn.default(msg, 16));
   key = this.keyFromPublic(key, enc);
-  signature$1 = new signature(signature$1, 'hex');
+  signature$1 = new signature(signature$1, 'hex'); // Perform primitive values validation
 
-  // Perform primitive values validation
   var r = signature$1.r;
   var s = signature$1.s;
   if (r.cmpn(1) < 0 || r.cmp(this.n) >= 0) return false;
-  if (s.cmpn(1) < 0 || s.cmp(this.n) >= 0) return false;
+  if (s.cmpn(1) < 0 || s.cmp(this.n) >= 0) return false; // Validate signature
 
-  // Validate signature
   var sinv = s.invm(this.n);
   var u1 = sinv.mul(msg).umod(this.n);
   var u2 = sinv.mul(r).umod(this.n);
   var p;
+
   if (!this.curve._maxwellTrick) {
     p = this.g.mulAdd(u1, key.getPublic(), u2);
     if (p.isInfinity()) return false;
     return p.getX().umod(this.n).cmp(r) === 0;
-  }
-
-  // NOTE: Greg Maxwell's trick, inspired by:
+  } // NOTE: Greg Maxwell's trick, inspired by:
   // https://git.io/vad3K
 
-  p = this.g.jmulAdd(u1, key.getPublic(), u2);
-  if (p.isInfinity()) return false;
 
-  // Compare `p.x` of Jacobian point with `r`,
+  p = this.g.jmulAdd(u1, key.getPublic(), u2);
+  if (p.isInfinity()) return false; // Compare `p.x` of Jacobian point with `r`,
   // this will do `p.x == r * p.z^2` instead of multiplying `p.x` by the
   // inverse of `p.z^2`
+
   return p.eqXToP(r);
 };
+
 EC.prototype.recoverPubKey = function (msg, signature$1, j, enc) {
   assert$5((3 & j) === j, 'The recovery param is more than two bits');
   signature$1 = new signature(signature$1, enc);
   var n = this.n;
   var e = new _bn.default(msg);
   var r = signature$1.r;
-  var s = signature$1.s;
+  var s = signature$1.s; // A set LSB signifies that the y-coordinate is odd
 
-  // A set LSB signifies that the y-coordinate is odd
   var isYOdd = j & 1;
   var isSecondKey = j >> 1;
-  if (r.cmp(this.curve.p.umod(this.curve.n)) >= 0 && isSecondKey) throw new Error('Unable to find sencond key candinate');
+  if (r.cmp(this.curve.p.umod(this.curve.n)) >= 0 && isSecondKey) throw new Error('Unable to find sencond key candinate'); // 1.1. Let x = r + jn.
 
-  // 1.1. Let x = r + jn.
   if (isSecondKey) r = this.curve.pointFromX(r.add(this.curve.n), isYOdd);else r = this.curve.pointFromX(r, isYOdd);
   var rInv = signature$1.r.invm(n);
   var s1 = n.sub(e).mul(rInv).umod(n);
-  var s2 = s.mul(rInv).umod(n);
-
-  // 1.6.1 Compute Q = r^-1 (sR -  eG)
+  var s2 = s.mul(rInv).umod(n); // 1.6.1 Compute Q = r^-1 (sR -  eG)
   //               Q = r^-1 (sR + -eG)
+
   return this.g.mulAdd(s1, r, s2);
 };
+
 EC.prototype.getKeyRecoveryParam = function (e, signature$1, Q, enc) {
   signature$1 = new signature(signature$1, enc);
   if (signature$1.recoveryParam !== null) return signature$1.recoveryParam;
+
   for (var i = 0; i < 4; i++) {
     var Qprime;
+
     try {
       Qprime = this.recoverPubKey(e, signature$1, i);
     } catch (e) {
       continue;
     }
+
     if (Qprime.eq(Q)) return i;
   }
+
   throw new Error('Unable to find valid recovery factor');
 };
+
 var elliptic_1 = createCommonjsModule(function (module, exports) {
   'use strict';
 
   var elliptic = exports;
-  elliptic.version = /*RicMoo:ethers*/{
+  elliptic.version =
+  /*RicMoo:ethers*/
+  {
     version: "6.5.4"
   }.version;
   elliptic.utils = utils_1$1;
-  elliptic.rand = /*RicMoo:ethers:require(brorand)*/function () {
+
+  elliptic.rand =
+  /*RicMoo:ethers:require(brorand)*/
+  function () {
     throw new Error('unsupported');
   };
-  elliptic.curve = curve_1;
-  elliptic.curves = curves_1;
 
-  // Protocols
+  elliptic.curve = curve_1;
+  elliptic.curves = curves_1; // Protocols
+
   elliptic.ec = ec;
-  elliptic.eddsa = /*RicMoo:ethers:require(./elliptic/eddsa)*/null;
+  elliptic.eddsa =
+  /*RicMoo:ethers:require(./elliptic/eddsa)*/
+  null;
 });
 var EC$1 = elliptic_1.ec;
 exports.EC = EC$1;
@@ -14520,19 +16270,28 @@ Object.defineProperty(exports, "__esModule", {
 exports.SigningKey = void 0;
 exports.computePublicKey = computePublicKey;
 exports.recoverPublicKey = recoverPublicKey;
+
 var _elliptic = require("./elliptic");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _properties = require("@ethersproject/properties");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 const logger = new _logger.Logger(_version.version);
 let _curve = null;
+
 function getCurve() {
   if (!_curve) {
     _curve = new _elliptic.EC("secp256k1");
   }
+
   return _curve;
 }
+
 class SigningKey {
   constructor(privateKey) {
     (0, _properties.defineReadOnly)(this, "curve", "secp256k1");
@@ -14542,17 +16301,21 @@ class SigningKey {
     (0, _properties.defineReadOnly)(this, "compressedPublicKey", "0x" + keyPair.getPublic(true, "hex"));
     (0, _properties.defineReadOnly)(this, "_isSigningKey", true);
   }
+
   _addPoint(other) {
     const p0 = getCurve().keyFromPublic((0, _bytes.arrayify)(this.publicKey));
     const p1 = getCurve().keyFromPublic((0, _bytes.arrayify)(other));
     return "0x" + p0.pub.add(p1.pub).encodeCompressed("hex");
   }
+
   signDigest(digest) {
     const keyPair = getCurve().keyFromPrivate((0, _bytes.arrayify)(this.privateKey));
     const digestBytes = (0, _bytes.arrayify)(digest);
+
     if (digestBytes.length !== 32) {
       logger.throwArgumentError("bad digest length", "digest", digest);
     }
+
     const signature = keyPair.sign(digestBytes, {
       canonical: true
     });
@@ -14562,16 +16325,21 @@ class SigningKey {
       s: (0, _bytes.hexZeroPad)("0x" + signature.s.toString(16), 32)
     });
   }
+
   computeSharedSecret(otherKey) {
     const keyPair = getCurve().keyFromPrivate((0, _bytes.arrayify)(this.privateKey));
     const otherKeyPair = getCurve().keyFromPublic((0, _bytes.arrayify)(computePublicKey(otherKey)));
     return (0, _bytes.hexZeroPad)("0x" + keyPair.derive(otherKeyPair.getPublic()).toString(16), 32);
   }
+
   static isSigningKey(value) {
     return !!(value && value._isSigningKey);
   }
+
 }
+
 exports.SigningKey = SigningKey;
+
 function recoverPublicKey(digest, signature) {
   const sig = (0, _bytes.splitSignature)(signature);
   const rs = {
@@ -14580,25 +16348,32 @@ function recoverPublicKey(digest, signature) {
   };
   return "0x" + getCurve().recoverPubKey((0, _bytes.arrayify)(digest), rs, sig.recoveryParam).encode("hex", false);
 }
+
 function computePublicKey(key, compressed) {
   const bytes = (0, _bytes.arrayify)(key);
+
   if (bytes.length === 32) {
     const signingKey = new SigningKey(bytes);
+
     if (compressed) {
       return "0x" + getCurve().keyFromPrivate(bytes).getPublic(true, "hex");
     }
+
     return signingKey.publicKey;
   } else if (bytes.length === 33) {
     if (compressed) {
       return (0, _bytes.hexlify)(bytes);
     }
+
     return "0x" + getCurve().keyFromPublic(bytes).getPublic(false, "hex");
   } else if (bytes.length === 65) {
     if (!compressed) {
       return (0, _bytes.hexlify)(bytes);
     }
+
     return "0x" + getCurve().keyFromPublic(bytes).getPublic(true, "hex");
   }
+
   return logger.throwArgumentError("invalid public or private key", "key", "[REDACTED]");
 }
 },{"./elliptic":"d7sA","@ethersproject/bytes":"aqkS","@ethersproject/properties":"JuuX","@ethersproject/logger":"kMNH","./_version":"ptZO"}],"O1ZL":[function(require,module,exports) {
@@ -14622,41 +16397,60 @@ exports.computeAddress = computeAddress;
 exports.parse = parse;
 exports.recoverAddress = recoverAddress;
 exports.serialize = serialize;
+
 var _address = require("@ethersproject/address");
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _constants = require("@ethersproject/constants");
+
 var _keccak = require("@ethersproject/keccak256");
+
 var _properties = require("@ethersproject/properties");
+
 var RLP = _interopRequireWildcard(require("@ethersproject/rlp"));
+
 var _signingKey = require("@ethersproject/signing-key");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 function _getRequireWildcardCache(nodeInterop) { if (typeof WeakMap !== "function") return null; var cacheBabelInterop = new WeakMap(); var cacheNodeInterop = new WeakMap(); return (_getRequireWildcardCache = function (nodeInterop) { return nodeInterop ? cacheNodeInterop : cacheBabelInterop; })(nodeInterop); }
+
 function _interopRequireWildcard(obj, nodeInterop) { if (!nodeInterop && obj && obj.__esModule) { return obj; } if (obj === null || typeof obj !== "object" && typeof obj !== "function") { return { default: obj }; } var cache = _getRequireWildcardCache(nodeInterop); if (cache && cache.has(obj)) { return cache.get(obj); } var newObj = {}; var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor; for (var key in obj) { if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) { var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null; if (desc && (desc.get || desc.set)) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } newObj.default = obj; if (cache) { cache.set(obj, newObj); } return newObj; }
+
 const logger = new _logger.Logger(_version.version);
 var TransactionTypes;
 exports.TransactionTypes = TransactionTypes;
+
 (function (TransactionTypes) {
   TransactionTypes[TransactionTypes["legacy"] = 0] = "legacy";
   TransactionTypes[TransactionTypes["eip2930"] = 1] = "eip2930";
   TransactionTypes[TransactionTypes["eip1559"] = 2] = "eip1559";
 })(TransactionTypes || (exports.TransactionTypes = TransactionTypes = {}));
-;
-///////////////////////////////
+
+; ///////////////////////////////
+
 function handleAddress(value) {
   if (value === "0x") {
     return null;
   }
+
   return (0, _address.getAddress)(value);
 }
+
 function handleNumber(value) {
   if (value === "0x") {
     return _constants.Zero;
   }
+
   return _bignumber.BigNumber.from(value);
-}
-// Legacy Transaction Fields
+} // Legacy Transaction Fields
+
+
 const transactionFields = [{
   name: "nonce",
   maxLength: 32,
@@ -14689,20 +16483,26 @@ const allowedTransactionKeys = {
   type: true,
   value: true
 };
+
 function computeAddress(key) {
   const publicKey = (0, _signingKey.computePublicKey)(key);
   return (0, _address.getAddress)((0, _bytes.hexDataSlice)((0, _keccak.keccak256)((0, _bytes.hexDataSlice)(publicKey, 1)), 12));
 }
+
 function recoverAddress(digest, signature) {
   return computeAddress((0, _signingKey.recoverPublicKey)((0, _bytes.arrayify)(digest), signature));
 }
+
 function formatNumber(value, name) {
   const result = (0, _bytes.stripZeros)(_bignumber.BigNumber.from(value).toHexString());
+
   if (result.length > 32) {
     logger.throwArgumentError("invalid length for " + name, "transaction:" + name, value);
   }
+
   return result;
 }
+
 function accessSetify(addr, storageKeys) {
   return {
     address: (0, _address.getAddress)(addr),
@@ -14710,10 +16510,12 @@ function accessSetify(addr, storageKeys) {
       if ((0, _bytes.hexDataLength)(storageKey) !== 32) {
         logger.throwArgumentError("invalid access list storageKey", `accessList[${addr}:${index}]`, storageKey);
       }
+
       return storageKey.toLowerCase();
     })
   };
 }
+
 function accessListify(value) {
   if (Array.isArray(value)) {
     return value.map((set, index) => {
@@ -14721,11 +16523,14 @@ function accessListify(value) {
         if (set.length > 2) {
           logger.throwArgumentError("access list expected to be [ address, storageKeys[] ]", `value[${index}]`, set);
         }
+
         return accessSetify(set[0], set[1]);
       }
+
       return accessSetify(set.address, set.storageKeys);
     });
   }
+
   const result = Object.keys(value).map(addr => {
     const storageKeys = value[addr].reduce((accum, storageKey) => {
       accum[storageKey] = true;
@@ -14736,16 +16541,20 @@ function accessListify(value) {
   result.sort((a, b) => a.address.localeCompare(b.address));
   return result;
 }
+
 function formatAccessList(value) {
   return accessListify(value).map(set => [set.address, set.storageKeys]);
 }
+
 function _serializeEip1559(transaction, signature) {
   // If there is an explicit gasPrice, make sure it matches the
   // EIP-1559 fees; otherwise they may not understand what they
   // think they are setting in terms of fee.
   if (transaction.gasPrice != null) {
     const gasPrice = _bignumber.BigNumber.from(transaction.gasPrice);
+
     const maxFeePerGas = _bignumber.BigNumber.from(transaction.maxFeePerGas || 0);
+
     if (!gasPrice.eq(maxFeePerGas)) {
       logger.throwArgumentError("mismatch EIP-1559 gasPrice != maxFeePerGas", "tx", {
         gasPrice,
@@ -14753,126 +16562,157 @@ function _serializeEip1559(transaction, signature) {
       });
     }
   }
+
   const fields = [formatNumber(transaction.chainId || 0, "chainId"), formatNumber(transaction.nonce || 0, "nonce"), formatNumber(transaction.maxPriorityFeePerGas || 0, "maxPriorityFeePerGas"), formatNumber(transaction.maxFeePerGas || 0, "maxFeePerGas"), formatNumber(transaction.gasLimit || 0, "gasLimit"), transaction.to != null ? (0, _address.getAddress)(transaction.to) : "0x", formatNumber(transaction.value || 0, "value"), transaction.data || "0x", formatAccessList(transaction.accessList || [])];
+
   if (signature) {
     const sig = (0, _bytes.splitSignature)(signature);
     fields.push(formatNumber(sig.recoveryParam, "recoveryParam"));
     fields.push((0, _bytes.stripZeros)(sig.r));
     fields.push((0, _bytes.stripZeros)(sig.s));
   }
+
   return (0, _bytes.hexConcat)(["0x02", RLP.encode(fields)]);
 }
+
 function _serializeEip2930(transaction, signature) {
   const fields = [formatNumber(transaction.chainId || 0, "chainId"), formatNumber(transaction.nonce || 0, "nonce"), formatNumber(transaction.gasPrice || 0, "gasPrice"), formatNumber(transaction.gasLimit || 0, "gasLimit"), transaction.to != null ? (0, _address.getAddress)(transaction.to) : "0x", formatNumber(transaction.value || 0, "value"), transaction.data || "0x", formatAccessList(transaction.accessList || [])];
+
   if (signature) {
     const sig = (0, _bytes.splitSignature)(signature);
     fields.push(formatNumber(sig.recoveryParam, "recoveryParam"));
     fields.push((0, _bytes.stripZeros)(sig.r));
     fields.push((0, _bytes.stripZeros)(sig.s));
   }
+
   return (0, _bytes.hexConcat)(["0x01", RLP.encode(fields)]);
-}
-// Legacy Transactions and EIP-155
+} // Legacy Transactions and EIP-155
+
+
 function _serialize(transaction, signature) {
   (0, _properties.checkProperties)(transaction, allowedTransactionKeys);
   const raw = [];
   transactionFields.forEach(function (fieldInfo) {
     let value = transaction[fieldInfo.name] || [];
     const options = {};
+
     if (fieldInfo.numeric) {
       options.hexPad = "left";
     }
-    value = (0, _bytes.arrayify)((0, _bytes.hexlify)(value, options));
-    // Fixed-width field
+
+    value = (0, _bytes.arrayify)((0, _bytes.hexlify)(value, options)); // Fixed-width field
+
     if (fieldInfo.length && value.length !== fieldInfo.length && value.length > 0) {
       logger.throwArgumentError("invalid length for " + fieldInfo.name, "transaction:" + fieldInfo.name, value);
-    }
-    // Variable-width (with a maximum)
+    } // Variable-width (with a maximum)
+
+
     if (fieldInfo.maxLength) {
       value = (0, _bytes.stripZeros)(value);
+
       if (value.length > fieldInfo.maxLength) {
         logger.throwArgumentError("invalid length for " + fieldInfo.name, "transaction:" + fieldInfo.name, value);
       }
     }
+
     raw.push((0, _bytes.hexlify)(value));
   });
   let chainId = 0;
+
   if (transaction.chainId != null) {
     // A chainId was provided; if non-zero we'll use EIP-155
     chainId = transaction.chainId;
+
     if (typeof chainId !== "number") {
       logger.throwArgumentError("invalid transaction.chainId", "transaction", transaction);
     }
   } else if (signature && !(0, _bytes.isBytesLike)(signature) && signature.v > 28) {
     // No chainId provided, but the signature is signing with EIP-155; derive chainId
     chainId = Math.floor((signature.v - 35) / 2);
-  }
-  // We have an EIP-155 transaction (chainId was specified and non-zero)
+  } // We have an EIP-155 transaction (chainId was specified and non-zero)
+
+
   if (chainId !== 0) {
     raw.push((0, _bytes.hexlify)(chainId)); // @TODO: hexValue?
+
     raw.push("0x");
     raw.push("0x");
-  }
-  // Requesting an unsigned transaction
+  } // Requesting an unsigned transaction
+
+
   if (!signature) {
     return RLP.encode(raw);
-  }
-  // The splitSignature will ensure the transaction has a recoveryParam in the
+  } // The splitSignature will ensure the transaction has a recoveryParam in the
   // case that the signTransaction function only adds a v.
-  const sig = (0, _bytes.splitSignature)(signature);
-  // We pushed a chainId and null r, s on for hashing only; remove those
+
+
+  const sig = (0, _bytes.splitSignature)(signature); // We pushed a chainId and null r, s on for hashing only; remove those
+
   let v = 27 + sig.recoveryParam;
+
   if (chainId !== 0) {
     raw.pop();
     raw.pop();
     raw.pop();
-    v += chainId * 2 + 8;
-    // If an EIP-155 v (directly or indirectly; maybe _vs) was provided, check it!
+    v += chainId * 2 + 8; // If an EIP-155 v (directly or indirectly; maybe _vs) was provided, check it!
+
     if (sig.v > 28 && sig.v !== v) {
       logger.throwArgumentError("transaction.chainId/signature.v mismatch", "signature", signature);
     }
   } else if (sig.v !== v) {
     logger.throwArgumentError("transaction.chainId/signature.v mismatch", "signature", signature);
   }
+
   raw.push((0, _bytes.hexlify)(v));
   raw.push((0, _bytes.stripZeros)((0, _bytes.arrayify)(sig.r)));
   raw.push((0, _bytes.stripZeros)((0, _bytes.arrayify)(sig.s)));
   return RLP.encode(raw);
 }
+
 function serialize(transaction, signature) {
   // Legacy and EIP-155 Transactions
   if (transaction.type == null || transaction.type === 0) {
     if (transaction.accessList != null) {
       logger.throwArgumentError("untyped transactions do not support accessList; include type: 1", "transaction", transaction);
     }
+
     return _serialize(transaction, signature);
-  }
-  // Typed Transactions (EIP-2718)
+  } // Typed Transactions (EIP-2718)
+
+
   switch (transaction.type) {
     case 1:
       return _serializeEip2930(transaction, signature);
+
     case 2:
       return _serializeEip1559(transaction, signature);
+
     default:
       break;
   }
+
   return logger.throwError(`unsupported transaction type: ${transaction.type}`, _logger.Logger.errors.UNSUPPORTED_OPERATION, {
     operation: "serializeTransaction",
     transactionType: transaction.type
   });
 }
+
 function _parseEipSignature(tx, fields, serialize) {
   try {
     const recid = handleNumber(fields[0]).toNumber();
+
     if (recid !== 0 && recid !== 1) {
       throw new Error("bad recid");
     }
+
     tx.v = recid;
   } catch (error) {
     logger.throwArgumentError("invalid v for transaction type: 1", "v", fields[0]);
   }
+
   tx.r = (0, _bytes.hexZeroPad)(fields[1], 32);
   tx.s = (0, _bytes.hexZeroPad)(fields[2], 32);
+
   try {
     const digest = (0, _keccak.keccak256)(serialize(tx));
     tx.from = recoverAddress(digest, {
@@ -14884,11 +16724,14 @@ function _parseEipSignature(tx, fields, serialize) {
     console.log(error);
   }
 }
+
 function _parseEip1559(payload) {
   const transaction = RLP.decode(payload.slice(1));
+
   if (transaction.length !== 9 && transaction.length !== 12) {
     logger.throwArgumentError("invalid component count for transaction type: 2", "payload", (0, _bytes.hexlify)(payload));
   }
+
   const maxPriorityFeePerGas = handleNumber(transaction[2]);
   const maxFeePerGas = handleNumber(transaction[3]);
   const tx = {
@@ -14903,20 +16746,26 @@ function _parseEip1559(payload) {
     value: handleNumber(transaction[6]),
     data: transaction[7],
     accessList: accessListify(transaction[8])
-  };
-  // Unsigned EIP-1559 Transaction
+  }; // Unsigned EIP-1559 Transaction
+
   if (transaction.length === 9) {
     return tx;
   }
+
   tx.hash = (0, _keccak.keccak256)(payload);
+
   _parseEipSignature(tx, transaction.slice(9), _serializeEip1559);
+
   return tx;
 }
+
 function _parseEip2930(payload) {
   const transaction = RLP.decode(payload.slice(1));
+
   if (transaction.length !== 8 && transaction.length !== 11) {
     logger.throwArgumentError("invalid component count for transaction type: 1", "payload", (0, _bytes.hexlify)(payload));
   }
+
   const tx = {
     type: 1,
     chainId: handleNumber(transaction[0]).toNumber(),
@@ -14927,21 +16776,27 @@ function _parseEip2930(payload) {
     value: handleNumber(transaction[5]),
     data: transaction[6],
     accessList: accessListify(transaction[7])
-  };
-  // Unsigned EIP-2930 Transaction
+  }; // Unsigned EIP-2930 Transaction
+
   if (transaction.length === 8) {
     return tx;
   }
+
   tx.hash = (0, _keccak.keccak256)(payload);
+
   _parseEipSignature(tx, transaction.slice(8), _serializeEip2930);
+
   return tx;
-}
-// Legacy Transactions and EIP-155
+} // Legacy Transactions and EIP-155
+
+
 function _parse(rawTransaction) {
   const transaction = RLP.decode(rawTransaction);
+
   if (transaction.length !== 9 && transaction.length !== 6) {
     logger.throwArgumentError("invalid raw transaction", "rawTransaction", rawTransaction);
   }
+
   const tx = {
     nonce: handleNumber(transaction[0]).toNumber(),
     gasPrice: handleNumber(transaction[1]),
@@ -14950,19 +16805,22 @@ function _parse(rawTransaction) {
     value: handleNumber(transaction[4]),
     data: transaction[5],
     chainId: 0
-  };
-  // Legacy unsigned transaction
+  }; // Legacy unsigned transaction
+
   if (transaction.length === 6) {
     return tx;
   }
+
   try {
     tx.v = _bignumber.BigNumber.from(transaction[6]).toNumber();
   } catch (error) {
     console.log(error);
     return tx;
   }
+
   tx.r = (0, _bytes.hexZeroPad)(transaction[7], 32);
   tx.s = (0, _bytes.hexZeroPad)(transaction[8], 32);
+
   if (_bignumber.BigNumber.from(tx.r).isZero() && _bignumber.BigNumber.from(tx.s).isZero()) {
     // EIP-155 unsigned transaction
     tx.chainId = tx.v;
@@ -14970,18 +16828,23 @@ function _parse(rawTransaction) {
   } else {
     // Signed Transaction
     tx.chainId = Math.floor((tx.v - 35) / 2);
+
     if (tx.chainId < 0) {
       tx.chainId = 0;
     }
+
     let recoveryParam = tx.v - 27;
     const raw = transaction.slice(0, 6);
+
     if (tx.chainId !== 0) {
       raw.push((0, _bytes.hexlify)(tx.chainId));
       raw.push("0x");
       raw.push("0x");
       recoveryParam -= tx.chainId * 2 + 8;
     }
+
     const digest = (0, _keccak.keccak256)(RLP.encode(raw));
+
     try {
       tx.from = recoverAddress(digest, {
         r: (0, _bytes.hexlify)(tx.r),
@@ -14991,26 +16854,33 @@ function _parse(rawTransaction) {
     } catch (error) {
       console.log(error);
     }
+
     tx.hash = (0, _keccak.keccak256)(rawTransaction);
   }
+
   tx.type = null;
   return tx;
 }
+
 function parse(rawTransaction) {
-  const payload = (0, _bytes.arrayify)(rawTransaction);
-  // Legacy and EIP-155 Transactions
+  const payload = (0, _bytes.arrayify)(rawTransaction); // Legacy and EIP-155 Transactions
+
   if (payload[0] > 0x7f) {
     return _parse(payload);
-  }
-  // Typed Transaction (EIP-2718)
+  } // Typed Transaction (EIP-2718)
+
+
   switch (payload[0]) {
     case 1:
       return _parseEip2930(payload);
+
     case 2:
       return _parseEip1559(payload);
+
     default:
       break;
   }
+
   return logger.throwError(`unsupported transaction type: ${payload[0]}`, _logger.Logger.errors.UNSUPPORTED_OPERATION, {
     operation: "parseTransaction",
     transactionType: payload[0]
@@ -15032,22 +16902,34 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.ContractFactory = exports.Contract = exports.BaseContract = void 0;
+
 var _abi = require("@ethersproject/abi");
+
 var _abstractProvider = require("@ethersproject/abstract-provider");
+
 var _abstractSigner = require("@ethersproject/abstract-signer");
+
 var _address = require("@ethersproject/address");
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _properties = require("@ethersproject/properties");
+
 var _transactions = require("@ethersproject/transactions");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -15056,6 +16938,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -15063,16 +16946,19 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 const logger = new _logger.Logger(_version.version);
 ;
-;
-///////////////////////////////
+; ///////////////////////////////
+
 const allowedTransactionKeys = {
   chainId: true,
   data: true,
@@ -15088,29 +16974,37 @@ const allowedTransactionKeys = {
   maxPriorityFeePerGas: true,
   customData: true
 };
+
 function resolveName(resolver, nameOrPromise) {
   return __awaiter(this, void 0, void 0, function* () {
     const name = yield nameOrPromise;
+
     if (typeof name !== "string") {
       logger.throwArgumentError("invalid address or ENS name", "name", name);
-    }
-    // If it is already an address, just use it (after adding checksum)
+    } // If it is already an address, just use it (after adding checksum)
+
+
     try {
       return (0, _address.getAddress)(name);
     } catch (error) {}
+
     if (!resolver) {
       logger.throwError("a provider or signer is needed to resolve ENS names", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
         operation: "resolveName"
       });
     }
+
     const address = yield resolver.resolveName(name);
+
     if (address == null) {
       logger.throwArgumentError("resolver or addr is not configured for ENS name", "name", name);
     }
+
     return address;
   });
-}
-// Recursively replaces ENS names with promises to resolve the name and resolves all properties
+} // Recursively replaces ENS names with promises to resolve the name and resolves all properties
+
+
 function resolveAddresses(resolver, value, paramType) {
   return __awaiter(this, void 0, void 0, function* () {
     if (Array.isArray(paramType)) {
@@ -15118,12 +17012,15 @@ function resolveAddresses(resolver, value, paramType) {
         return resolveAddresses(resolver, Array.isArray(value) ? value[index] : value[paramType.name], paramType);
       }));
     }
+
     if (paramType.type === "address") {
       return yield resolveName(resolver, value);
     }
+
     if (paramType.type === "tuple") {
       return yield resolveAddresses(resolver, value, paramType.components);
     }
+
     if (paramType.baseType === "array") {
       if (!Array.isArray(value)) {
         return Promise.reject(logger.makeError("invalid value for array", _logger.Logger.errors.INVALID_ARGUMENT, {
@@ -15131,21 +17028,26 @@ function resolveAddresses(resolver, value, paramType) {
           value
         }));
       }
+
       return yield Promise.all(value.map(v => resolveAddresses(resolver, v, paramType.arrayChildren)));
     }
+
     return value;
   });
 }
+
 function populateTransaction(contract, fragment, args) {
   return __awaiter(this, void 0, void 0, function* () {
     // If an extra argument is given, it is overrides
     let overrides = {};
+
     if (args.length === fragment.inputs.length + 1 && typeof args[args.length - 1] === "object") {
       overrides = (0, _properties.shallowCopy)(args.pop());
-    }
-    // Make sure the parameter count matches
-    logger.checkArgumentCount(args.length, fragment.inputs.length, "passed to contract");
-    // Populate "from" override (allow promises)
+    } // Make sure the parameter count matches
+
+
+    logger.checkArgumentCount(args.length, fragment.inputs.length, "passed to contract"); // Populate "from" override (allow promises)
+
     if (contract.signer) {
       if (overrides.from) {
         // Contracts with a Signer are from the Signer's frame-of-reference;
@@ -15159,58 +17061,67 @@ function populateTransaction(contract, fragment, args) {
               operation: "overrides.from"
             });
           }
+
           return check.override;
         }));
       } else {
         overrides.from = contract.signer.getAddress();
       }
     } else if (overrides.from) {
-      overrides.from = resolveName(contract.provider, overrides.from);
-      //} else {
+      overrides.from = resolveName(contract.provider, overrides.from); //} else {
       // Contracts without a signer can override "from", and if
       // unspecified the zero address is used
       //overrides.from = AddressZero;
-    }
-    // Wait for all dependencies to be resolved (prefer the signer over the provider)
+    } // Wait for all dependencies to be resolved (prefer the signer over the provider)
+
+
     const resolved = yield (0, _properties.resolveProperties)({
       args: resolveAddresses(contract.signer || contract.provider, args, fragment.inputs),
       address: contract.resolvedAddress,
       overrides: (0, _properties.resolveProperties)(overrides) || {}
-    });
-    // The ABI coded transaction
+    }); // The ABI coded transaction
+
     const data = contract.interface.encodeFunctionData(fragment, resolved.args);
     const tx = {
       data: data,
       to: resolved.address
-    };
-    // Resolved Overrides
-    const ro = resolved.overrides;
-    // Populate simple overrides
+    }; // Resolved Overrides
+
+    const ro = resolved.overrides; // Populate simple overrides
+
     if (ro.nonce != null) {
       tx.nonce = _bignumber.BigNumber.from(ro.nonce).toNumber();
     }
+
     if (ro.gasLimit != null) {
       tx.gasLimit = _bignumber.BigNumber.from(ro.gasLimit);
     }
+
     if (ro.gasPrice != null) {
       tx.gasPrice = _bignumber.BigNumber.from(ro.gasPrice);
     }
+
     if (ro.maxFeePerGas != null) {
       tx.maxFeePerGas = _bignumber.BigNumber.from(ro.maxFeePerGas);
     }
+
     if (ro.maxPriorityFeePerGas != null) {
       tx.maxPriorityFeePerGas = _bignumber.BigNumber.from(ro.maxPriorityFeePerGas);
     }
+
     if (ro.from != null) {
       tx.from = ro.from;
     }
+
     if (ro.type != null) {
       tx.type = ro.type;
     }
+
     if (ro.accessList != null) {
       tx.accessList = (0, _transactions.accessListify)(ro.accessList);
-    }
-    // If there was no "gasLimit" override, but the ABI specifies a default, use it
+    } // If there was no "gasLimit" override, but the ABI specifies a default, use it
+
+
     if (tx.gasLimit == null && fragment.gas != null) {
       // Compute the intrinsic gas cost for this transaction
       // @TODO: This is based on the yellow paper as of Petersburg; this is something
@@ -15219,29 +17130,37 @@ function populateTransaction(contract, fragment, args) {
       // similar logic to the ContractFactory.
       let intrinsic = 21000;
       const bytes = (0, _bytes.arrayify)(data);
+
       for (let i = 0; i < bytes.length; i++) {
         intrinsic += 4;
+
         if (bytes[i]) {
           intrinsic += 64;
         }
       }
+
       tx.gasLimit = _bignumber.BigNumber.from(fragment.gas).add(intrinsic);
-    }
-    // Populate "value" override
+    } // Populate "value" override
+
+
     if (ro.value) {
       const roValue = _bignumber.BigNumber.from(ro.value);
+
       if (!roValue.isZero() && !fragment.payable) {
         logger.throwError("non-payable method cannot override value", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
           operation: "overrides.value",
           value: overrides.value
         });
       }
+
       tx.value = roValue;
     }
+
     if (ro.customData) {
       tx.customData = (0, _properties.shallowCopy)(ro.customData);
-    }
-    // Remove the overrides
+    } // Remove the overrides
+
+
     delete overrides.nonce;
     delete overrides.gasLimit;
     delete overrides.gasPrice;
@@ -15251,24 +17170,28 @@ function populateTransaction(contract, fragment, args) {
     delete overrides.accessList;
     delete overrides.maxFeePerGas;
     delete overrides.maxPriorityFeePerGas;
-    delete overrides.customData;
-    // Make sure there are no stray overrides, which may indicate a
+    delete overrides.customData; // Make sure there are no stray overrides, which may indicate a
     // typo or using an unsupported key.
+
     const leftovers = Object.keys(overrides).filter(key => overrides[key] != null);
+
     if (leftovers.length) {
       logger.throwError(`cannot override ${leftovers.map(l => JSON.stringify(l)).join(",")}`, _logger.Logger.errors.UNSUPPORTED_OPERATION, {
         operation: "overrides",
         overrides: leftovers
       });
     }
+
     return tx;
   });
 }
+
 function buildPopulate(contract, fragment) {
   return function (...args) {
     return populateTransaction(contract, fragment, args);
   };
 }
+
 function buildEstimate(contract, fragment) {
   const signerOrProvider = contract.signer || contract.provider;
   return function (...args) {
@@ -15278,75 +17201,96 @@ function buildEstimate(contract, fragment) {
           operation: "estimateGas"
         });
       }
+
       const tx = yield populateTransaction(contract, fragment, args);
       return yield signerOrProvider.estimateGas(tx);
     });
   };
 }
+
 function addContractWait(contract, tx) {
   const wait = tx.wait.bind(tx);
+
   tx.wait = confirmations => {
     return wait(confirmations).then(receipt => {
       receipt.events = receipt.logs.map(log => {
         let event = (0, _properties.deepCopy)(log);
         let parsed = null;
+
         try {
           parsed = contract.interface.parseLog(log);
-        } catch (e) {}
-        // Successfully parsed the event log; include it
+        } catch (e) {} // Successfully parsed the event log; include it
+
+
         if (parsed) {
           event.args = parsed.args;
+
           event.decode = (data, topics) => {
             return contract.interface.decodeEventLog(parsed.eventFragment, data, topics);
           };
+
           event.event = parsed.name;
           event.eventSignature = parsed.signature;
-        }
-        // Useful operations
+        } // Useful operations
+
+
         event.removeListener = () => {
           return contract.provider;
         };
+
         event.getBlock = () => {
           return contract.provider.getBlock(receipt.blockHash);
         };
+
         event.getTransaction = () => {
           return contract.provider.getTransaction(receipt.transactionHash);
         };
+
         event.getTransactionReceipt = () => {
           return Promise.resolve(receipt);
         };
+
         return event;
       });
       return receipt;
     });
   };
 }
+
 function buildCall(contract, fragment, collapseSimple) {
   const signerOrProvider = contract.signer || contract.provider;
   return function (...args) {
     return __awaiter(this, void 0, void 0, function* () {
       // Extract the "blockTag" override if present
       let blockTag = undefined;
+
       if (args.length === fragment.inputs.length + 1 && typeof args[args.length - 1] === "object") {
         const overrides = (0, _properties.shallowCopy)(args.pop());
+
         if (overrides.blockTag != null) {
           blockTag = yield overrides.blockTag;
         }
+
         delete overrides.blockTag;
         args.push(overrides);
-      }
-      // If the contract was just deployed, wait until it is mined
+      } // If the contract was just deployed, wait until it is mined
+
+
       if (contract.deployTransaction != null) {
         yield contract._deployed(blockTag);
-      }
-      // Call a node and get the result
+      } // Call a node and get the result
+
+
       const tx = yield populateTransaction(contract, fragment, args);
       const result = yield signerOrProvider.call(tx, blockTag);
+
       try {
         let value = contract.interface.decodeFunctionResult(fragment, result);
+
         if (collapseSimple && fragment.outputs.length === 1) {
           value = value[0];
         }
+
         return value;
       } catch (error) {
         if (error.code === _logger.Logger.errors.CALL_EXCEPTION) {
@@ -15354,11 +17298,13 @@ function buildCall(contract, fragment, collapseSimple) {
           error.args = args;
           error.transaction = tx;
         }
+
         throw error;
       }
     });
   };
 }
+
 function buildSend(contract, fragment) {
   return function (...args) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -15366,122 +17312,149 @@ function buildSend(contract, fragment) {
         logger.throwError("sending a transaction requires a signer", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
           operation: "sendTransaction"
         });
-      }
-      // If the contract was just deployed, wait until it is mined
+      } // If the contract was just deployed, wait until it is mined
+
+
       if (contract.deployTransaction != null) {
         yield contract._deployed();
       }
+
       const txRequest = yield populateTransaction(contract, fragment, args);
-      const tx = yield contract.signer.sendTransaction(txRequest);
-      // Tweak the tx.wait so the receipt has extra properties
+      const tx = yield contract.signer.sendTransaction(txRequest); // Tweak the tx.wait so the receipt has extra properties
+
       addContractWait(contract, tx);
       return tx;
     });
   };
 }
+
 function buildDefault(contract, fragment, collapseSimple) {
   if (fragment.constant) {
     return buildCall(contract, fragment, collapseSimple);
   }
+
   return buildSend(contract, fragment);
 }
+
 function getEventTag(filter) {
   if (filter.address && (filter.topics == null || filter.topics.length === 0)) {
     return "*";
   }
+
   return (filter.address || "*") + "@" + (filter.topics ? filter.topics.map(topic => {
     if (Array.isArray(topic)) {
       return topic.join("|");
     }
+
     return topic;
   }).join(":") : "");
 }
+
 class RunningEvent {
   constructor(tag, filter) {
     (0, _properties.defineReadOnly)(this, "tag", tag);
     (0, _properties.defineReadOnly)(this, "filter", filter);
     this._listeners = [];
   }
+
   addListener(listener, once) {
     this._listeners.push({
       listener: listener,
       once: once
     });
   }
+
   removeListener(listener) {
     let done = false;
     this._listeners = this._listeners.filter(item => {
       if (done || item.listener !== listener) {
         return true;
       }
+
       done = true;
       return false;
     });
   }
+
   removeAllListeners() {
     this._listeners = [];
   }
+
   listeners() {
     return this._listeners.map(i => i.listener);
   }
+
   listenerCount() {
     return this._listeners.length;
   }
+
   run(args) {
     const listenerCount = this.listenerCount();
     this._listeners = this._listeners.filter(item => {
-      const argsCopy = args.slice();
-      // Call the callback in the next event loop
+      const argsCopy = args.slice(); // Call the callback in the next event loop
+
       setTimeout(() => {
         item.listener.apply(this, argsCopy);
-      }, 0);
-      // Reschedule it if it not "once"
+      }, 0); // Reschedule it if it not "once"
+
       return !item.once;
     });
     return listenerCount;
   }
-  prepareEvent(event) {}
-  // Returns the array that will be applied to an emit
+
+  prepareEvent(event) {} // Returns the array that will be applied to an emit
+
+
   getEmit(event) {
     return [event];
   }
+
 }
+
 class ErrorRunningEvent extends RunningEvent {
   constructor() {
     super("error", null);
   }
-}
-// @TODO Fragment should inherit Wildcard? and just override getEmit?
+
+} // @TODO Fragment should inherit Wildcard? and just override getEmit?
 //       or have a common abstract super class, with enough constructor
 //       options to configure both.
 // A Fragment Event will populate all the properties that Wildcard
 // will, and additionally dereference the arguments when emitting
+
+
 class FragmentRunningEvent extends RunningEvent {
   constructor(address, contractInterface, fragment, topics) {
     const filter = {
       address: address
     };
     let topic = contractInterface.getEventTopic(fragment);
+
     if (topics) {
       if (topic !== topics[0]) {
         logger.throwArgumentError("topic mismatch", "topics", topics);
       }
+
       filter.topics = topics.slice();
     } else {
       filter.topics = [topic];
     }
+
     super(getEventTag(filter), filter);
     (0, _properties.defineReadOnly)(this, "address", address);
     (0, _properties.defineReadOnly)(this, "interface", contractInterface);
     (0, _properties.defineReadOnly)(this, "fragment", fragment);
   }
+
   prepareEvent(event) {
     super.prepareEvent(event);
     event.event = this.fragment.name;
     event.eventSignature = this.fragment.format();
+
     event.decode = (data, topics) => {
       return this.interface.decodeEventLog(this.fragment, data, topics);
     };
+
     try {
       event.args = this.interface.decodeEventLog(this.fragment, event.data, event.topics);
     } catch (error) {
@@ -15489,21 +17462,26 @@ class FragmentRunningEvent extends RunningEvent {
       event.decodeError = error;
     }
   }
+
   getEmit(event) {
     const errors = (0, _abi.checkResultErrors)(event.args);
+
     if (errors.length) {
       throw errors[0].error;
     }
+
     const args = (event.args || []).slice();
     args.push(event);
     return args;
   }
-}
-// A Wildcard Event will attempt to populate:
+
+} // A Wildcard Event will attempt to populate:
 //  - event            The name of the event name
 //  - eventSignature   The full signature of the event
 //  - decode           A function to decode data and topics
 //  - args             The decoded data and topics
+
+
 class WildcardRunningEvent extends RunningEvent {
   constructor(address, contractInterface) {
     super("*", {
@@ -15512,27 +17490,33 @@ class WildcardRunningEvent extends RunningEvent {
     (0, _properties.defineReadOnly)(this, "address", address);
     (0, _properties.defineReadOnly)(this, "interface", contractInterface);
   }
+
   prepareEvent(event) {
     super.prepareEvent(event);
+
     try {
       const parsed = this.interface.parseLog(event);
       event.event = parsed.name;
       event.eventSignature = parsed.signature;
+
       event.decode = (data, topics) => {
         return this.interface.decodeEventLog(parsed.eventFragment, data, topics);
       };
+
       event.args = parsed.args;
-    } catch (error) {
-      // No matching event
+    } catch (error) {// No matching event
     }
   }
+
 }
+
 class BaseContract {
   constructor(addressOrName, contractInterface, signerOrProvider) {
-    logger.checkNew(new.target, Contract);
-    // @TODO: Maybe still check the addressOrName looks like a valid address or name?
+    logger.checkNew(new.target, Contract); // @TODO: Maybe still check the addressOrName looks like a valid address or name?
     //address = getAddress(address);
+
     (0, _properties.defineReadOnly)(this, "interface", (0, _properties.getStatic)(new.target, "getInterface")(contractInterface));
+
     if (signerOrProvider == null) {
       (0, _properties.defineReadOnly)(this, "provider", null);
       (0, _properties.defineReadOnly)(this, "signer", null);
@@ -15545,6 +17529,7 @@ class BaseContract {
     } else {
       logger.throwArgumentError("invalid signer or provider", "signerOrProvider", signerOrProvider);
     }
+
     (0, _properties.defineReadOnly)(this, "callStatic", {});
     (0, _properties.defineReadOnly)(this, "estimateGas", {});
     (0, _properties.defineReadOnly)(this, "functions", {});
@@ -15560,13 +17545,16 @@ class BaseContract {
             topics: this.interface.encodeFilterTopics(event, args)
           };
         });
+
         if (!uniqueFilters[event.name]) {
           uniqueFilters[event.name] = [];
         }
+
         uniqueFilters[event.name].push(eventSignature);
       });
       Object.keys(uniqueFilters).forEach(name => {
         const filters = uniqueFilters[name];
+
         if (filters.length === 1) {
           (0, _properties.defineReadOnly)(this.filters, name, this.filters[filters[0]]);
         } else {
@@ -15576,10 +17564,13 @@ class BaseContract {
     }
     (0, _properties.defineReadOnly)(this, "_runningEvents", {});
     (0, _properties.defineReadOnly)(this, "_wrappedEmits", {});
+
     if (addressOrName == null) {
       logger.throwArgumentError("invalid contract address or ENS name", "addressOrName", addressOrName);
     }
+
     (0, _properties.defineReadOnly)(this, "address", addressOrName);
+
     if (this.provider) {
       (0, _properties.defineReadOnly)(this, "resolvedAddress", resolveName(this.provider, addressOrName));
     } else {
@@ -15592,41 +17583,50 @@ class BaseContract {
         });
       }
     }
+
     const uniqueNames = {};
     const uniqueSignatures = {};
     Object.keys(this.interface.functions).forEach(signature => {
-      const fragment = this.interface.functions[signature];
-      // Check that the signature is unique; if not the ABI generation has
+      const fragment = this.interface.functions[signature]; // Check that the signature is unique; if not the ABI generation has
       // not been cleaned or may be incorrectly generated
+
       if (uniqueSignatures[signature]) {
         logger.warn(`Duplicate ABI entry for ${JSON.stringify(signature)}`);
         return;
       }
-      uniqueSignatures[signature] = true;
-      // Track unique names; we only expose bare named functions if they
+
+      uniqueSignatures[signature] = true; // Track unique names; we only expose bare named functions if they
       // are ambiguous
+
       {
         const name = fragment.name;
+
         if (!uniqueNames[`%${name}`]) {
           uniqueNames[`%${name}`] = [];
         }
+
         uniqueNames[`%${name}`].push(signature);
       }
+
       if (this[signature] == null) {
         (0, _properties.defineReadOnly)(this, signature, buildDefault(this, fragment, true));
-      }
-      // We do not collapse simple calls on this bucket, which allows
+      } // We do not collapse simple calls on this bucket, which allows
       // frameworks to safely use this without introspection as well as
       // allows decoding error recovery.
+
+
       if (this.functions[signature] == null) {
         (0, _properties.defineReadOnly)(this.functions, signature, buildDefault(this, fragment, false));
       }
+
       if (this.callStatic[signature] == null) {
         (0, _properties.defineReadOnly)(this.callStatic, signature, buildCall(this, fragment, true));
       }
+
       if (this.populateTransaction[signature] == null) {
         (0, _properties.defineReadOnly)(this.populateTransaction, signature, buildPopulate(this, fragment));
       }
+
       if (this.estimateGas[signature] == null) {
         (0, _properties.defineReadOnly)(this.estimateGas, signature, buildEstimate(this, fragment));
       }
@@ -15634,45 +17634,56 @@ class BaseContract {
     Object.keys(uniqueNames).forEach(name => {
       // Ambiguous names to not get attached as bare names
       const signatures = uniqueNames[name];
+
       if (signatures.length > 1) {
         return;
-      }
-      // Strip off the leading "%" used for prototype protection
+      } // Strip off the leading "%" used for prototype protection
+
+
       name = name.substring(1);
-      const signature = signatures[0];
-      // If overwriting a member property that is null, swallow the error
+      const signature = signatures[0]; // If overwriting a member property that is null, swallow the error
+
       try {
         if (this[name] == null) {
           (0, _properties.defineReadOnly)(this, name, this[signature]);
         }
       } catch (e) {}
+
       if (this.functions[name] == null) {
         (0, _properties.defineReadOnly)(this.functions, name, this.functions[signature]);
       }
+
       if (this.callStatic[name] == null) {
         (0, _properties.defineReadOnly)(this.callStatic, name, this.callStatic[signature]);
       }
+
       if (this.populateTransaction[name] == null) {
         (0, _properties.defineReadOnly)(this.populateTransaction, name, this.populateTransaction[signature]);
       }
+
       if (this.estimateGas[name] == null) {
         (0, _properties.defineReadOnly)(this.estimateGas, name, this.estimateGas[signature]);
       }
     });
   }
+
   static getContractAddress(transaction) {
     return (0, _address.getContractAddress)(transaction);
   }
+
   static getInterface(contractInterface) {
     if (_abi.Interface.isInterface(contractInterface)) {
       return contractInterface;
     }
+
     return new _abi.Interface(contractInterface);
-  }
-  // @TODO: Allow timeout?
+  } // @TODO: Allow timeout?
+
+
   deployed() {
     return this._deployed();
   }
+
   _deployed(blockTag) {
     if (!this._deployedPromise) {
       // If we were just deployed, we know the transaction we should occur in
@@ -15691,27 +17702,32 @@ class BaseContract {
               operation: "getDeployed"
             });
           }
+
           return this;
         });
       }
     }
+
     return this._deployedPromise;
-  }
-  // @TODO:
+  } // @TODO:
   // estimateFallback(overrides?: TransactionRequest): Promise<BigNumber>
   // @TODO:
   // estimateDeploy(bytecode: string, ...args): Promise<BigNumber>
+
+
   fallback(overrides) {
     if (!this.signer) {
       logger.throwError("sending a transactions require a signer", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
         operation: "sendTransaction(fallback)"
       });
     }
+
     const tx = (0, _properties.shallowCopy)(overrides || {});
     ["from", "to"].forEach(function (key) {
       if (tx[key] == null) {
         return;
       }
+
       logger.throwError("cannot override " + key, _logger.Logger.errors.UNSUPPORTED_OPERATION, {
         operation: key
       });
@@ -15720,121 +17736,150 @@ class BaseContract {
     return this.deployed().then(() => {
       return this.signer.sendTransaction(tx);
     });
-  }
-  // Reconnect to a different signer or provider
+  } // Reconnect to a different signer or provider
+
+
   connect(signerOrProvider) {
     if (typeof signerOrProvider === "string") {
       signerOrProvider = new _abstractSigner.VoidSigner(signerOrProvider, this.provider);
     }
+
     const contract = new this.constructor(this.address, this.interface, signerOrProvider);
+
     if (this.deployTransaction) {
       (0, _properties.defineReadOnly)(contract, "deployTransaction", this.deployTransaction);
     }
+
     return contract;
-  }
-  // Re-attach to a different on-chain instance of this contract
+  } // Re-attach to a different on-chain instance of this contract
+
+
   attach(addressOrName) {
     return new this.constructor(addressOrName, this.interface, this.signer || this.provider);
   }
+
   static isIndexed(value) {
     return _abi.Indexed.isIndexed(value);
   }
+
   _normalizeRunningEvent(runningEvent) {
     // Already have an instance of this event running; we can re-use it
     if (this._runningEvents[runningEvent.tag]) {
       return this._runningEvents[runningEvent.tag];
     }
+
     return runningEvent;
   }
+
   _getRunningEvent(eventName) {
     if (typeof eventName === "string") {
       // Listen for "error" events (if your contract has an error event, include
       // the full signature to bypass this special event keyword)
       if (eventName === "error") {
         return this._normalizeRunningEvent(new ErrorRunningEvent());
-      }
-      // Listen for any event that is registered
+      } // Listen for any event that is registered
+
+
       if (eventName === "event") {
         return this._normalizeRunningEvent(new RunningEvent("event", null));
-      }
-      // Listen for any event
+      } // Listen for any event
+
+
       if (eventName === "*") {
         return this._normalizeRunningEvent(new WildcardRunningEvent(this.address, this.interface));
-      }
-      // Get the event Fragment (throws if ambiguous/unknown event)
+      } // Get the event Fragment (throws if ambiguous/unknown event)
+
+
       const fragment = this.interface.getEvent(eventName);
       return this._normalizeRunningEvent(new FragmentRunningEvent(this.address, this.interface, fragment));
-    }
-    // We have topics to filter by...
+    } // We have topics to filter by...
+
+
     if (eventName.topics && eventName.topics.length > 0) {
       // Is it a known topichash? (throws if no matching topichash)
       try {
         const topic = eventName.topics[0];
+
         if (typeof topic !== "string") {
           throw new Error("invalid topic"); // @TODO: May happen for anonymous events
         }
 
         const fragment = this.interface.getEvent(topic);
         return this._normalizeRunningEvent(new FragmentRunningEvent(this.address, this.interface, fragment, eventName.topics));
-      } catch (error) {}
-      // Filter by the unknown topichash
+      } catch (error) {} // Filter by the unknown topichash
+
+
       const filter = {
         address: this.address,
         topics: eventName.topics
       };
       return this._normalizeRunningEvent(new RunningEvent(getEventTag(filter), filter));
     }
+
     return this._normalizeRunningEvent(new WildcardRunningEvent(this.address, this.interface));
   }
+
   _checkRunningEvents(runningEvent) {
     if (runningEvent.listenerCount() === 0) {
-      delete this._runningEvents[runningEvent.tag];
-      // If we have a poller for this, remove it
+      delete this._runningEvents[runningEvent.tag]; // If we have a poller for this, remove it
+
       const emit = this._wrappedEmits[runningEvent.tag];
+
       if (emit && runningEvent.filter) {
         this.provider.off(runningEvent.filter, emit);
         delete this._wrappedEmits[runningEvent.tag];
       }
     }
-  }
-  // Subclasses can override this to gracefully recover
+  } // Subclasses can override this to gracefully recover
   // from parse errors if they wish
+
+
   _wrapEvent(runningEvent, log, listener) {
     const event = (0, _properties.deepCopy)(log);
+
     event.removeListener = () => {
       if (!listener) {
         return;
       }
+
       runningEvent.removeListener(listener);
+
       this._checkRunningEvents(runningEvent);
     };
+
     event.getBlock = () => {
       return this.provider.getBlock(log.blockHash);
     };
+
     event.getTransaction = () => {
       return this.provider.getTransaction(log.transactionHash);
     };
+
     event.getTransactionReceipt = () => {
       return this.provider.getTransactionReceipt(log.transactionHash);
-    };
-    // This may throw if the topics and data mismatch the signature
+    }; // This may throw if the topics and data mismatch the signature
+
+
     runningEvent.prepareEvent(event);
     return event;
   }
+
   _addEventListener(runningEvent, listener, once) {
     if (!this.provider) {
       logger.throwError("events require a provider or a signer with a provider", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
         operation: "once"
       });
     }
-    runningEvent.addListener(listener, once);
-    // Track this running event and its listeners (may already be there; but no hard in updating)
-    this._runningEvents[runningEvent.tag] = runningEvent;
-    // If we are not polling the provider, start polling
+
+    runningEvent.addListener(listener, once); // Track this running event and its listeners (may already be there; but no hard in updating)
+
+    this._runningEvents[runningEvent.tag] = runningEvent; // If we are not polling the provider, start polling
+
     if (!this._wrappedEmits[runningEvent.tag]) {
       const wrappedEmit = log => {
-        let event = this._wrapEvent(runningEvent, log, listener);
-        // Try to emit the result for the parameterized event...
+        let event = this._wrapEvent(runningEvent, log, listener); // Try to emit the result for the parameterized event...
+
+
         if (event.decodeError == null) {
           try {
             const args = runningEvent.getEmit(event);
@@ -15842,120 +17887,164 @@ class BaseContract {
           } catch (error) {
             event.decodeError = error.error;
           }
-        }
-        // Always emit "event" for fragment-base events
+        } // Always emit "event" for fragment-base events
+
+
         if (runningEvent.filter != null) {
           this.emit("event", event);
-        }
-        // Emit "error" if there was an error
+        } // Emit "error" if there was an error
+
+
         if (event.decodeError != null) {
           this.emit("error", event.decodeError, event);
         }
       };
-      this._wrappedEmits[runningEvent.tag] = wrappedEmit;
-      // Special events, like "error" do not have a filter
+
+      this._wrappedEmits[runningEvent.tag] = wrappedEmit; // Special events, like "error" do not have a filter
+
       if (runningEvent.filter != null) {
         this.provider.on(runningEvent.filter, wrappedEmit);
       }
     }
   }
+
   queryFilter(event, fromBlockOrBlockhash, toBlock) {
     const runningEvent = this._getRunningEvent(event);
+
     const filter = (0, _properties.shallowCopy)(runningEvent.filter);
+
     if (typeof fromBlockOrBlockhash === "string" && (0, _bytes.isHexString)(fromBlockOrBlockhash, 32)) {
       if (toBlock != null) {
         logger.throwArgumentError("cannot specify toBlock with blockhash", "toBlock", toBlock);
       }
+
       filter.blockHash = fromBlockOrBlockhash;
     } else {
       filter.fromBlock = fromBlockOrBlockhash != null ? fromBlockOrBlockhash : 0;
       filter.toBlock = toBlock != null ? toBlock : "latest";
     }
+
     return this.provider.getLogs(filter).then(logs => {
       return logs.map(log => this._wrapEvent(runningEvent, log, null));
     });
   }
+
   on(event, listener) {
     this._addEventListener(this._getRunningEvent(event), listener, false);
+
     return this;
   }
+
   once(event, listener) {
     this._addEventListener(this._getRunningEvent(event), listener, true);
+
     return this;
   }
+
   emit(eventName, ...args) {
     if (!this.provider) {
       return false;
     }
+
     const runningEvent = this._getRunningEvent(eventName);
-    const result = runningEvent.run(args) > 0;
-    // May have drained all the "once" events; check for living events
+
+    const result = runningEvent.run(args) > 0; // May have drained all the "once" events; check for living events
+
     this._checkRunningEvents(runningEvent);
+
     return result;
   }
+
   listenerCount(eventName) {
     if (!this.provider) {
       return 0;
     }
+
     if (eventName == null) {
       return Object.keys(this._runningEvents).reduce((accum, key) => {
         return accum + this._runningEvents[key].listenerCount();
       }, 0);
     }
+
     return this._getRunningEvent(eventName).listenerCount();
   }
+
   listeners(eventName) {
     if (!this.provider) {
       return [];
     }
+
     if (eventName == null) {
       const result = [];
+
       for (let tag in this._runningEvents) {
         this._runningEvents[tag].listeners().forEach(listener => {
           result.push(listener);
         });
       }
+
       return result;
     }
+
     return this._getRunningEvent(eventName).listeners();
   }
+
   removeAllListeners(eventName) {
     if (!this.provider) {
       return this;
     }
+
     if (eventName == null) {
       for (const tag in this._runningEvents) {
         const runningEvent = this._runningEvents[tag];
         runningEvent.removeAllListeners();
+
         this._checkRunningEvents(runningEvent);
       }
+
       return this;
-    }
-    // Delete any listeners
+    } // Delete any listeners
+
+
     const runningEvent = this._getRunningEvent(eventName);
+
     runningEvent.removeAllListeners();
+
     this._checkRunningEvents(runningEvent);
+
     return this;
   }
+
   off(eventName, listener) {
     if (!this.provider) {
       return this;
     }
+
     const runningEvent = this._getRunningEvent(eventName);
+
     runningEvent.removeListener(listener);
+
     this._checkRunningEvents(runningEvent);
+
     return this;
   }
+
   removeListener(eventName, listener) {
     return this.off(eventName, listener);
   }
+
 }
+
 exports.BaseContract = BaseContract;
+
 class Contract extends BaseContract {}
+
 exports.Contract = Contract;
+
 class ContractFactory {
   constructor(contractInterface, bytecode, signer) {
     let bytecodeHex = null;
+
     if (typeof bytecode === "string") {
       bytecodeHex = bytecode;
     } else if ((0, _bytes.isBytes)(bytecode)) {
@@ -15966,117 +18055,142 @@ class ContractFactory {
     } else {
       // Crash in the next verification step
       bytecodeHex = "!";
-    }
-    // Make sure it is 0x prefixed
+    } // Make sure it is 0x prefixed
+
+
     if (bytecodeHex.substring(0, 2) !== "0x") {
       bytecodeHex = "0x" + bytecodeHex;
-    }
-    // Make sure the final result is valid bytecode
+    } // Make sure the final result is valid bytecode
+
+
     if (!(0, _bytes.isHexString)(bytecodeHex) || bytecodeHex.length % 2) {
       logger.throwArgumentError("invalid bytecode", "bytecode", bytecode);
-    }
-    // If we have a signer, make sure it is valid
+    } // If we have a signer, make sure it is valid
+
+
     if (signer && !_abstractSigner.Signer.isSigner(signer)) {
       logger.throwArgumentError("invalid signer", "signer", signer);
     }
+
     (0, _properties.defineReadOnly)(this, "bytecode", bytecodeHex);
     (0, _properties.defineReadOnly)(this, "interface", (0, _properties.getStatic)(new.target, "getInterface")(contractInterface));
     (0, _properties.defineReadOnly)(this, "signer", signer || null);
-  }
-  // @TODO: Future; rename to populateTransaction?
+  } // @TODO: Future; rename to populateTransaction?
+
+
   getDeployTransaction(...args) {
-    let tx = {};
-    // If we have 1 additional argument, we allow transaction overrides
+    let tx = {}; // If we have 1 additional argument, we allow transaction overrides
+
     if (args.length === this.interface.deploy.inputs.length + 1 && typeof args[args.length - 1] === "object") {
       tx = (0, _properties.shallowCopy)(args.pop());
+
       for (const key in tx) {
         if (!allowedTransactionKeys[key]) {
           throw new Error("unknown transaction override " + key);
         }
       }
-    }
-    // Do not allow these to be overridden in a deployment transaction
+    } // Do not allow these to be overridden in a deployment transaction
+
+
     ["data", "from", "to"].forEach(key => {
       if (tx[key] == null) {
         return;
       }
+
       logger.throwError("cannot override " + key, _logger.Logger.errors.UNSUPPORTED_OPERATION, {
         operation: key
       });
     });
+
     if (tx.value) {
       const value = _bignumber.BigNumber.from(tx.value);
+
       if (!value.isZero() && !this.interface.deploy.payable) {
         logger.throwError("non-payable constructor cannot override value", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
           operation: "overrides.value",
           value: tx.value
         });
       }
-    }
-    // Make sure the call matches the constructor signature
-    logger.checkArgumentCount(args.length, this.interface.deploy.inputs.length, " in Contract constructor");
-    // Set the data to the bytecode + the encoded constructor arguments
+    } // Make sure the call matches the constructor signature
+
+
+    logger.checkArgumentCount(args.length, this.interface.deploy.inputs.length, " in Contract constructor"); // Set the data to the bytecode + the encoded constructor arguments
+
     tx.data = (0, _bytes.hexlify)((0, _bytes.concat)([this.bytecode, this.interface.encodeDeploy(args)]));
     return tx;
   }
+
   deploy(...args) {
     return __awaiter(this, void 0, void 0, function* () {
-      let overrides = {};
-      // If 1 extra parameter was passed in, it contains overrides
+      let overrides = {}; // If 1 extra parameter was passed in, it contains overrides
+
       if (args.length === this.interface.deploy.inputs.length + 1) {
         overrides = args.pop();
-      }
-      // Make sure the call matches the constructor signature
-      logger.checkArgumentCount(args.length, this.interface.deploy.inputs.length, " in Contract constructor");
-      // Resolve ENS names and promises in the arguments
+      } // Make sure the call matches the constructor signature
+
+
+      logger.checkArgumentCount(args.length, this.interface.deploy.inputs.length, " in Contract constructor"); // Resolve ENS names and promises in the arguments
+
       const params = yield resolveAddresses(this.signer, args, this.interface.deploy.inputs);
-      params.push(overrides);
-      // Get the deployment transaction (with optional overrides)
-      const unsignedTx = this.getDeployTransaction(...params);
-      // Send the deployment transaction
+      params.push(overrides); // Get the deployment transaction (with optional overrides)
+
+      const unsignedTx = this.getDeployTransaction(...params); // Send the deployment transaction
+
       const tx = yield this.signer.sendTransaction(unsignedTx);
       const address = (0, _properties.getStatic)(this.constructor, "getContractAddress")(tx);
-      const contract = (0, _properties.getStatic)(this.constructor, "getContract")(address, this.interface, this.signer);
-      // Add the modified wait that wraps events
+      const contract = (0, _properties.getStatic)(this.constructor, "getContract")(address, this.interface, this.signer); // Add the modified wait that wraps events
+
       addContractWait(contract, tx);
       (0, _properties.defineReadOnly)(contract, "deployTransaction", tx);
       return contract;
     });
   }
+
   attach(address) {
     return this.constructor.getContract(address, this.interface, this.signer);
   }
+
   connect(signer) {
     return new this.constructor(this.interface, this.bytecode, signer);
   }
+
   static fromSolidity(compilerOutput, signer) {
     if (compilerOutput == null) {
       logger.throwError("missing compiler output", _logger.Logger.errors.MISSING_ARGUMENT, {
         argument: "compilerOutput"
       });
     }
+
     if (typeof compilerOutput === "string") {
       compilerOutput = JSON.parse(compilerOutput);
     }
+
     const abi = compilerOutput.abi;
     let bytecode = null;
+
     if (compilerOutput.bytecode) {
       bytecode = compilerOutput.bytecode;
     } else if (compilerOutput.evm && compilerOutput.evm.bytecode) {
       bytecode = compilerOutput.evm.bytecode;
     }
+
     return new this(abi, bytecode, signer);
   }
+
   static getInterface(contractInterface) {
     return Contract.getInterface(contractInterface);
   }
+
   static getContractAddress(tx) {
     return (0, _address.getContractAddress)(tx);
   }
+
   static getContract(address, contractInterface, signer) {
     return new Contract(address, contractInterface, signer);
   }
+
 }
+
 exports.ContractFactory = ContractFactory;
 },{"@ethersproject/abi":"FSnr","@ethersproject/abstract-provider":"GKyj","@ethersproject/abstract-signer":"l8eZ","@ethersproject/address":"a1wm","@ethersproject/bignumber":"efJK","@ethersproject/bytes":"aqkS","@ethersproject/properties":"JuuX","@ethersproject/transactions":"OW34","@ethersproject/logger":"kMNH","./_version":"fYqP"}],"Q7g1":[function(require,module,exports) {
 "use strict";
@@ -16085,8 +18199,11 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.BaseX = exports.Base58 = exports.Base32 = void 0;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _properties = require("@ethersproject/properties");
+
 /**
  * var basex = require("base-x");
  *
@@ -16126,86 +18243,106 @@ var _properties = require("@ethersproject/properties");
  * IN THE SOFTWARE.
  *
  */
-
 class BaseX {
   constructor(alphabet) {
     (0, _properties.defineReadOnly)(this, "alphabet", alphabet);
     (0, _properties.defineReadOnly)(this, "base", alphabet.length);
     (0, _properties.defineReadOnly)(this, "_alphabetMap", {});
-    (0, _properties.defineReadOnly)(this, "_leader", alphabet.charAt(0));
-    // pre-compute lookup table
+    (0, _properties.defineReadOnly)(this, "_leader", alphabet.charAt(0)); // pre-compute lookup table
+
     for (let i = 0; i < alphabet.length; i++) {
       this._alphabetMap[alphabet.charAt(i)] = i;
     }
   }
+
   encode(value) {
     let source = (0, _bytes.arrayify)(value);
+
     if (source.length === 0) {
       return "";
     }
+
     let digits = [0];
+
     for (let i = 0; i < source.length; ++i) {
       let carry = source[i];
+
       for (let j = 0; j < digits.length; ++j) {
         carry += digits[j] << 8;
         digits[j] = carry % this.base;
         carry = carry / this.base | 0;
       }
+
       while (carry > 0) {
         digits.push(carry % this.base);
         carry = carry / this.base | 0;
       }
     }
-    let string = "";
-    // deal with leading zeros
+
+    let string = ""; // deal with leading zeros
+
     for (let k = 0; source[k] === 0 && k < source.length - 1; ++k) {
       string += this._leader;
-    }
-    // convert digits to a string
+    } // convert digits to a string
+
+
     for (let q = digits.length - 1; q >= 0; --q) {
       string += this.alphabet[digits[q]];
     }
+
     return string;
   }
+
   decode(value) {
     if (typeof value !== "string") {
       throw new TypeError("Expected String");
     }
+
     let bytes = [];
+
     if (value.length === 0) {
       return new Uint8Array(bytes);
     }
+
     bytes.push(0);
+
     for (let i = 0; i < value.length; i++) {
       let byte = this._alphabetMap[value[i]];
+
       if (byte === undefined) {
         throw new Error("Non-base" + this.base + " character");
       }
+
       let carry = byte;
+
       for (let j = 0; j < bytes.length; ++j) {
         carry += bytes[j] * this.base;
         bytes[j] = carry & 0xff;
         carry >>= 8;
       }
+
       while (carry > 0) {
         bytes.push(carry & 0xff);
         carry >>= 8;
       }
-    }
-    // deal with leading zeros
+    } // deal with leading zeros
+
+
     for (let k = 0; value[k] === this._leader && k < value.length - 1; ++k) {
       bytes.push(0);
     }
+
     return (0, _bytes.arrayify)(new Uint8Array(bytes.reverse()));
   }
+
 }
+
 exports.BaseX = BaseX;
 const Base32 = new BaseX("abcdefghijklmnopqrstuvwxyz234567");
 exports.Base32 = Base32;
-const Base58 = new BaseX("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz");
-
-//console.log(Base58.decode("Qmd2V777o5XvJbYMeMb8k2nU5f8d3ciUQ5YpYuWhzv8iDj"))
+const Base58 = new BaseX("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"); //console.log(Base58.decode("Qmd2V777o5XvJbYMeMb8k2nU5f8d3ciUQ5YpYuWhzv8iDj"))
 //console.log(Base58.encode(Base58.decode("Qmd2V777o5XvJbYMeMb8k2nU5f8d3ciUQ5YpYuWhzv8iDj")))
+
 exports.Base58 = Base58;
 },{"@ethersproject/bytes":"aqkS","@ethersproject/properties":"JuuX"}],"i0se":[function(require,module,exports) {
 "use strict";
@@ -16216,10 +18353,12 @@ Object.defineProperty(exports, "__esModule", {
 exports.SupportedAlgorithm = void 0;
 var SupportedAlgorithm;
 exports.SupportedAlgorithm = SupportedAlgorithm;
+
 (function (SupportedAlgorithm) {
   SupportedAlgorithm["sha256"] = "sha256";
   SupportedAlgorithm["sha512"] = "sha512";
 })(SupportedAlgorithm || (exports.SupportedAlgorithm = SupportedAlgorithm = {}));
+
 ;
 },{}],"doqp":[function(require,module,exports) {
 "use strict";
@@ -16240,24 +18379,34 @@ exports.computeHmac = computeHmac;
 exports.ripemd160 = ripemd160;
 exports.sha256 = sha256;
 exports.sha512 = sha512;
-var _hash = _interopRequireDefault(require("hash.js"));
-var _bytes = require("@ethersproject/bytes");
-var _types = require("./types");
-var _logger = require("@ethersproject/logger");
-var _version = require("./_version");
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-//const _ripemd160 = _hash.ripemd160;
 
+var _hash = _interopRequireDefault(require("hash.js"));
+
+var _bytes = require("@ethersproject/bytes");
+
+var _types = require("./types");
+
+var _logger = require("@ethersproject/logger");
+
+var _version = require("./_version");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+//const _ripemd160 = _hash.ripemd160;
 const logger = new _logger.Logger(_version.version);
+
 function ripemd160(data) {
   return "0x" + _hash.default.ripemd160().update((0, _bytes.arrayify)(data)).digest("hex");
 }
+
 function sha256(data) {
   return "0x" + _hash.default.sha256().update((0, _bytes.arrayify)(data)).digest("hex");
 }
+
 function sha512(data) {
   return "0x" + _hash.default.sha512().update((0, _bytes.arrayify)(data)).digest("hex");
 }
+
 function computeHmac(algorithm, key, data) {
   if (!_types.SupportedAlgorithm[algorithm]) {
     logger.throwError("unsupported algorithm " + algorithm, _logger.Logger.errors.UNSUPPORTED_OPERATION, {
@@ -16265,6 +18414,7 @@ function computeHmac(algorithm, key, data) {
       algorithm: algorithm
     });
   }
+
   return "0x" + _hash.default.hmac(_hash.default[algorithm], (0, _bytes.arrayify)(key)).update((0, _bytes.arrayify)(data)).digest("hex");
 }
 },{"hash.js":"U6lo","@ethersproject/bytes":"aqkS","./types":"i0se","@ethersproject/logger":"kMNH","./_version":"doqp"}],"C9Hj":[function(require,module,exports) {
@@ -16303,7 +18453,9 @@ Object.defineProperty(exports, "sha512", {
     return _sha.sha512;
   }
 });
+
 var _sha = require("./sha2");
+
 var _types = require("./types");
 },{"./sha2":"UNZc","./types":"i0se"}],"LObC":[function(require,module,exports) {
 "use strict";
@@ -16312,8 +18464,11 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.pbkdf2 = pbkdf2;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _sha = require("@ethersproject/sha2");
+
 function pbkdf2(password, salt, iterations, keylen, hashAlgorithm) {
   password = (0, _bytes.arrayify)(password);
   salt = (0, _bytes.arrayify)(salt);
@@ -16321,36 +18476,43 @@ function pbkdf2(password, salt, iterations, keylen, hashAlgorithm) {
   let l = 1;
   const DK = new Uint8Array(keylen);
   const block1 = new Uint8Array(salt.length + 4);
-  block1.set(salt);
-  //salt.copy(block1, 0, 0, salt.length)
+  block1.set(salt); //salt.copy(block1, 0, 0, salt.length)
+
   let r;
   let T;
+
   for (let i = 1; i <= l; i++) {
     //block1.writeUInt32BE(i, salt.length)
     block1[salt.length] = i >> 24 & 0xff;
     block1[salt.length + 1] = i >> 16 & 0xff;
     block1[salt.length + 2] = i >> 8 & 0xff;
-    block1[salt.length + 3] = i & 0xff;
-    //let U = createHmac(password).update(block1).digest();
+    block1[salt.length + 3] = i & 0xff; //let U = createHmac(password).update(block1).digest();
+
     let U = (0, _bytes.arrayify)((0, _sha.computeHmac)(hashAlgorithm, password, block1));
+
     if (!hLen) {
       hLen = U.length;
       T = new Uint8Array(hLen);
       l = Math.ceil(keylen / hLen);
       r = keylen - (l - 1) * hLen;
-    }
-    //U.copy(T, 0, 0, hLen)
+    } //U.copy(T, 0, 0, hLen)
+
+
     T.set(U);
+
     for (let j = 1; j < iterations; j++) {
       //U = createHmac(password).update(U).digest();
       U = (0, _bytes.arrayify)((0, _sha.computeHmac)(hashAlgorithm, password, U));
+
       for (let k = 0; k < hLen; k++) T[k] ^= U[k];
     }
+
     const destPos = (i - 1) * hLen;
-    const len = i === l ? r : hLen;
-    //T.copy(DK, destPos, 0, len)
+    const len = i === l ? r : hLen; //T.copy(DK, destPos, 0, len)
+
     DK.set((0, _bytes.arrayify)(T).slice(0, len), destPos);
   }
+
   return (0, _bytes.hexlify)(DK);
 }
 },{"@ethersproject/bytes":"aqkS","@ethersproject/sha2":"C9Hj"}],"IYfJ":[function(require,module,exports) {
@@ -16365,6 +18527,7 @@ Object.defineProperty(exports, "pbkdf2", {
     return _pbkdf.pbkdf2;
   }
 });
+
 var _pbkdf = require("./pbkdf2");
 },{"./pbkdf2":"LObC"}],"HNzj":[function(require,module,exports) {
 "use strict";
@@ -16376,53 +18539,69 @@ exports.version = void 0;
 const version = "wordlists/5.5.0";
 exports.version = version;
 },{}],"kJwc":[function(require,module,exports) {
-"use strict";
+"use strict"; // This gets overridden by rollup
 
-// This gets overridden by rollup
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.logger = exports.Wordlist = void 0;
+
 var _hash = require("@ethersproject/hash");
+
 var _properties = require("@ethersproject/properties");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 const exportWordlist = false;
 const logger = new _logger.Logger(_version.version);
 exports.logger = logger;
+
 class Wordlist {
   constructor(locale) {
     logger.checkAbstract(new.target, Wordlist);
     (0, _properties.defineReadOnly)(this, "locale", locale);
-  }
-  // Subclasses may override this
+  } // Subclasses may override this
+
+
   split(mnemonic) {
     return mnemonic.toLowerCase().split(/ +/g);
-  }
-  // Subclasses may override this
+  } // Subclasses may override this
+
+
   join(words) {
     return words.join(" ");
   }
+
   static check(wordlist) {
     const words = [];
+
     for (let i = 0; i < 2048; i++) {
       const word = wordlist.getWord(i);
       /* istanbul ignore if */
+
       if (i !== wordlist.getWordIndex(word)) {
         return "0x";
       }
+
       words.push(word);
     }
+
     return (0, _hash.id)(words.join("\n") + "\n");
   }
+
   static register(lang, name) {
     if (!name) {
       name = lang.locale;
     }
     /* istanbul ignore if */
+
+
     if (exportWordlist) {
       try {
         const anyGlobal = window;
+
         if (anyGlobal._ethers && anyGlobal._ethers.wordlists) {
           if (!anyGlobal._ethers.wordlists[name]) {
             (0, _properties.defineReadOnly)(anyGlobal._ethers.wordlists, name, lang);
@@ -16431,7 +18610,9 @@ class Wordlist {
       } catch (error) {}
     }
   }
+
 }
+
 exports.Wordlist = Wordlist;
 },{"@ethersproject/hash":"eHxR","@ethersproject/properties":"JuuX","@ethersproject/logger":"kMNH","./_version":"HNzj"}],"no67":[function(require,module,exports) {
 "use strict";
@@ -16440,36 +18621,47 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.langEn = void 0;
+
 var _wordlist = require("./wordlist");
+
 const words = "AbandonAbilityAbleAboutAboveAbsentAbsorbAbstractAbsurdAbuseAccessAccidentAccountAccuseAchieveAcidAcousticAcquireAcrossActActionActorActressActualAdaptAddAddictAddressAdjustAdmitAdultAdvanceAdviceAerobicAffairAffordAfraidAgainAgeAgentAgreeAheadAimAirAirportAisleAlarmAlbumAlcoholAlertAlienAllAlleyAllowAlmostAloneAlphaAlreadyAlsoAlterAlwaysAmateurAmazingAmongAmountAmusedAnalystAnchorAncientAngerAngleAngryAnimalAnkleAnnounceAnnualAnotherAnswerAntennaAntiqueAnxietyAnyApartApologyAppearAppleApproveAprilArchArcticAreaArenaArgueArmArmedArmorArmyAroundArrangeArrestArriveArrowArtArtefactArtistArtworkAskAspectAssaultAssetAssistAssumeAsthmaAthleteAtomAttackAttendAttitudeAttractAuctionAuditAugustAuntAuthorAutoAutumnAverageAvocadoAvoidAwakeAwareAwayAwesomeAwfulAwkwardAxisBabyBachelorBaconBadgeBagBalanceBalconyBallBambooBananaBannerBarBarelyBargainBarrelBaseBasicBasketBattleBeachBeanBeautyBecauseBecomeBeefBeforeBeginBehaveBehindBelieveBelowBeltBenchBenefitBestBetrayBetterBetweenBeyondBicycleBidBikeBindBiologyBirdBirthBitterBlackBladeBlameBlanketBlastBleakBlessBlindBloodBlossomBlouseBlueBlurBlushBoardBoatBodyBoilBombBoneBonusBookBoostBorderBoringBorrowBossBottomBounceBoxBoyBracketBrainBrandBrassBraveBreadBreezeBrickBridgeBriefBrightBringBriskBroccoliBrokenBronzeBroomBrotherBrownBrushBubbleBuddyBudgetBuffaloBuildBulbBulkBulletBundleBunkerBurdenBurgerBurstBusBusinessBusyButterBuyerBuzzCabbageCabinCableCactusCageCakeCallCalmCameraCampCanCanalCancelCandyCannonCanoeCanvasCanyonCapableCapitalCaptainCarCarbonCardCargoCarpetCarryCartCaseCashCasinoCastleCasualCatCatalogCatchCategoryCattleCaughtCauseCautionCaveCeilingCeleryCementCensusCenturyCerealCertainChairChalkChampionChangeChaosChapterChargeChaseChatCheapCheckCheeseChefCherryChestChickenChiefChildChimneyChoiceChooseChronicChuckleChunkChurnCigarCinnamonCircleCitizenCityCivilClaimClapClarifyClawClayCleanClerkCleverClickClientCliffClimbClinicClipClockClogCloseClothCloudClownClubClumpClusterClutchCoachCoastCoconutCodeCoffeeCoilCoinCollectColorColumnCombineComeComfortComicCommonCompanyConcertConductConfirmCongressConnectConsiderControlConvinceCookCoolCopperCopyCoralCoreCornCorrectCostCottonCouchCountryCoupleCourseCousinCoverCoyoteCrackCradleCraftCramCraneCrashCraterCrawlCrazyCreamCreditCreekCrewCricketCrimeCrispCriticCropCrossCrouchCrowdCrucialCruelCruiseCrumbleCrunchCrushCryCrystalCubeCultureCupCupboardCuriousCurrentCurtainCurveCushionCustomCuteCycleDadDamageDampDanceDangerDaringDashDaughterDawnDayDealDebateDebrisDecadeDecemberDecideDeclineDecorateDecreaseDeerDefenseDefineDefyDegreeDelayDeliverDemandDemiseDenialDentistDenyDepartDependDepositDepthDeputyDeriveDescribeDesertDesignDeskDespairDestroyDetailDetectDevelopDeviceDevoteDiagramDialDiamondDiaryDiceDieselDietDifferDigitalDignityDilemmaDinnerDinosaurDirectDirtDisagreeDiscoverDiseaseDishDismissDisorderDisplayDistanceDivertDivideDivorceDizzyDoctorDocumentDogDollDolphinDomainDonateDonkeyDonorDoorDoseDoubleDoveDraftDragonDramaDrasticDrawDreamDressDriftDrillDrinkDripDriveDropDrumDryDuckDumbDuneDuringDustDutchDutyDwarfDynamicEagerEagleEarlyEarnEarthEasilyEastEasyEchoEcologyEconomyEdgeEditEducateEffortEggEightEitherElbowElderElectricElegantElementElephantElevatorEliteElseEmbarkEmbodyEmbraceEmergeEmotionEmployEmpowerEmptyEnableEnactEndEndlessEndorseEnemyEnergyEnforceEngageEngineEnhanceEnjoyEnlistEnoughEnrichEnrollEnsureEnterEntireEntryEnvelopeEpisodeEqualEquipEraEraseErodeErosionErrorEruptEscapeEssayEssenceEstateEternalEthicsEvidenceEvilEvokeEvolveExactExampleExcessExchangeExciteExcludeExcuseExecuteExerciseExhaustExhibitExileExistExitExoticExpandExpectExpireExplainExposeExpressExtendExtraEyeEyebrowFabricFaceFacultyFadeFaintFaithFallFalseFameFamilyFamousFanFancyFantasyFarmFashionFatFatalFatherFatigueFaultFavoriteFeatureFebruaryFederalFeeFeedFeelFemaleFenceFestivalFetchFeverFewFiberFictionFieldFigureFileFilmFilterFinalFindFineFingerFinishFireFirmFirstFiscalFishFitFitnessFixFlagFlameFlashFlatFlavorFleeFlightFlipFloatFlockFloorFlowerFluidFlushFlyFoamFocusFogFoilFoldFollowFoodFootForceForestForgetForkFortuneForumForwardFossilFosterFoundFoxFragileFrameFrequentFreshFriendFringeFrogFrontFrostFrownFrozenFruitFuelFunFunnyFurnaceFuryFutureGadgetGainGalaxyGalleryGameGapGarageGarbageGardenGarlicGarmentGasGaspGateGatherGaugeGazeGeneralGeniusGenreGentleGenuineGestureGhostGiantGiftGiggleGingerGiraffeGirlGiveGladGlanceGlareGlassGlideGlimpseGlobeGloomGloryGloveGlowGlueGoatGoddessGoldGoodGooseGorillaGospelGossipGovernGownGrabGraceGrainGrantGrapeGrassGravityGreatGreenGridGriefGritGroceryGroupGrowGruntGuardGuessGuideGuiltGuitarGunGymHabitHairHalfHammerHamsterHandHappyHarborHardHarshHarvestHatHaveHawkHazardHeadHealthHeartHeavyHedgehogHeightHelloHelmetHelpHenHeroHiddenHighHillHintHipHireHistoryHobbyHockeyHoldHoleHolidayHollowHomeHoneyHoodHopeHornHorrorHorseHospitalHostHotelHourHoverHubHugeHumanHumbleHumorHundredHungryHuntHurdleHurryHurtHusbandHybridIceIconIdeaIdentifyIdleIgnoreIllIllegalIllnessImageImitateImmenseImmuneImpactImposeImproveImpulseInchIncludeIncomeIncreaseIndexIndicateIndoorIndustryInfantInflictInformInhaleInheritInitialInjectInjuryInmateInnerInnocentInputInquiryInsaneInsectInsideInspireInstallIntactInterestIntoInvestInviteInvolveIronIslandIsolateIssueItemIvoryJacketJaguarJarJazzJealousJeansJellyJewelJobJoinJokeJourneyJoyJudgeJuiceJumpJungleJuniorJunkJustKangarooKeenKeepKetchupKeyKickKidKidneyKindKingdomKissKitKitchenKiteKittenKiwiKneeKnifeKnockKnowLabLabelLaborLadderLadyLakeLampLanguageLaptopLargeLaterLatinLaughLaundryLavaLawLawnLawsuitLayerLazyLeaderLeafLearnLeaveLectureLeftLegLegalLegendLeisureLemonLendLengthLensLeopardLessonLetterLevelLiarLibertyLibraryLicenseLifeLiftLightLikeLimbLimitLinkLionLiquidListLittleLiveLizardLoadLoanLobsterLocalLockLogicLonelyLongLoopLotteryLoudLoungeLoveLoyalLuckyLuggageLumberLunarLunchLuxuryLyricsMachineMadMagicMagnetMaidMailMainMajorMakeMammalManManageMandateMangoMansionManualMapleMarbleMarchMarginMarineMarketMarriageMaskMassMasterMatchMaterialMathMatrixMatterMaximumMazeMeadowMeanMeasureMeatMechanicMedalMediaMelodyMeltMemberMemoryMentionMenuMercyMergeMeritMerryMeshMessageMetalMethodMiddleMidnightMilkMillionMimicMindMinimumMinorMinuteMiracleMirrorMiseryMissMistakeMixMixedMixtureMobileModelModifyMomMomentMonitorMonkeyMonsterMonthMoonMoralMoreMorningMosquitoMotherMotionMotorMountainMouseMoveMovieMuchMuffinMuleMultiplyMuscleMuseumMushroomMusicMustMutualMyselfMysteryMythNaiveNameNapkinNarrowNastyNationNatureNearNeckNeedNegativeNeglectNeitherNephewNerveNestNetNetworkNeutralNeverNewsNextNiceNightNobleNoiseNomineeNoodleNormalNorthNoseNotableNoteNothingNoticeNovelNowNuclearNumberNurseNutOakObeyObjectObligeObscureObserveObtainObviousOccurOceanOctoberOdorOffOfferOfficeOftenOilOkayOldOliveOlympicOmitOnceOneOnionOnlineOnlyOpenOperaOpinionOpposeOptionOrangeOrbitOrchardOrderOrdinaryOrganOrientOriginalOrphanOstrichOtherOutdoorOuterOutputOutsideOvalOvenOverOwnOwnerOxygenOysterOzonePactPaddlePagePairPalacePalmPandaPanelPanicPantherPaperParadeParentParkParrotPartyPassPatchPathPatientPatrolPatternPausePavePaymentPeacePeanutPearPeasantPelicanPenPenaltyPencilPeoplePepperPerfectPermitPersonPetPhonePhotoPhrasePhysicalPianoPicnicPicturePiecePigPigeonPillPilotPinkPioneerPipePistolPitchPizzaPlacePlanetPlasticPlatePlayPleasePledgePluckPlugPlungePoemPoetPointPolarPolePolicePondPonyPoolPopularPortionPositionPossiblePostPotatoPotteryPovertyPowderPowerPracticePraisePredictPreferPreparePresentPrettyPreventPricePridePrimaryPrintPriorityPrisonPrivatePrizeProblemProcessProduceProfitProgramProjectPromoteProofPropertyProsperProtectProudProvidePublicPuddingPullPulpPulsePumpkinPunchPupilPuppyPurchasePurityPurposePursePushPutPuzzlePyramidQualityQuantumQuarterQuestionQuickQuitQuizQuoteRabbitRaccoonRaceRackRadarRadioRailRainRaiseRallyRampRanchRandomRangeRapidRareRateRatherRavenRawRazorReadyRealReasonRebelRebuildRecallReceiveRecipeRecordRecycleReduceReflectReformRefuseRegionRegretRegularRejectRelaxReleaseReliefRelyRemainRememberRemindRemoveRenderRenewRentReopenRepairRepeatReplaceReportRequireRescueResembleResistResourceResponseResultRetireRetreatReturnReunionRevealReviewRewardRhythmRibRibbonRiceRichRideRidgeRifleRightRigidRingRiotRippleRiskRitualRivalRiverRoadRoastRobotRobustRocketRomanceRoofRookieRoomRoseRotateRoughRoundRouteRoyalRubberRudeRugRuleRunRunwayRuralSadSaddleSadnessSafeSailSaladSalmonSalonSaltSaluteSameSampleSandSatisfySatoshiSauceSausageSaveSayScaleScanScareScatterSceneSchemeSchoolScienceScissorsScorpionScoutScrapScreenScriptScrubSeaSearchSeasonSeatSecondSecretSectionSecuritySeedSeekSegmentSelectSellSeminarSeniorSenseSentenceSeriesServiceSessionSettleSetupSevenShadowShaftShallowShareShedShellSheriffShieldShiftShineShipShiverShockShoeShootShopShortShoulderShoveShrimpShrugShuffleShySiblingSickSideSiegeSightSignSilentSilkSillySilverSimilarSimpleSinceSingSirenSisterSituateSixSizeSkateSketchSkiSkillSkinSkirtSkullSlabSlamSleepSlenderSliceSlideSlightSlimSloganSlotSlowSlushSmallSmartSmileSmokeSmoothSnackSnakeSnapSniffSnowSoapSoccerSocialSockSodaSoftSolarSoldierSolidSolutionSolveSomeoneSongSoonSorrySortSoulSoundSoupSourceSouthSpaceSpareSpatialSpawnSpeakSpecialSpeedSpellSpendSphereSpiceSpiderSpikeSpinSpiritSplitSpoilSponsorSpoonSportSpotSpraySpreadSpringSpySquareSqueezeSquirrelStableStadiumStaffStageStairsStampStandStartStateStaySteakSteelStemStepStereoStickStillStingStockStomachStoneStoolStoryStoveStrategyStreetStrikeStrongStruggleStudentStuffStumbleStyleSubjectSubmitSubwaySuccessSuchSuddenSufferSugarSuggestSuitSummerSunSunnySunsetSuperSupplySupremeSureSurfaceSurgeSurpriseSurroundSurveySuspectSustainSwallowSwampSwapSwarmSwearSweetSwiftSwimSwingSwitchSwordSymbolSymptomSyrupSystemTableTackleTagTailTalentTalkTankTapeTargetTaskTasteTattooTaxiTeachTeamTellTenTenantTennisTentTermTestTextThankThatThemeThenTheoryThereTheyThingThisThoughtThreeThriveThrowThumbThunderTicketTideTigerTiltTimberTimeTinyTipTiredTissueTitleToastTobaccoTodayToddlerToeTogetherToiletTokenTomatoTomorrowToneTongueTonightToolToothTopTopicToppleTorchTornadoTortoiseTossTotalTouristTowardTowerTownToyTrackTradeTrafficTragicTrainTransferTrapTrashTravelTrayTreatTreeTrendTrialTribeTrickTriggerTrimTripTrophyTroubleTruckTrueTrulyTrumpetTrustTruthTryTubeTuitionTumbleTunaTunnelTurkeyTurnTurtleTwelveTwentyTwiceTwinTwistTwoTypeTypicalUglyUmbrellaUnableUnawareUncleUncoverUnderUndoUnfairUnfoldUnhappyUniformUniqueUnitUniverseUnknownUnlockUntilUnusualUnveilUpdateUpgradeUpholdUponUpperUpsetUrbanUrgeUsageUseUsedUsefulUselessUsualUtilityVacantVacuumVagueValidValleyValveVanVanishVaporVariousVastVaultVehicleVelvetVendorVentureVenueVerbVerifyVersionVeryVesselVeteranViableVibrantViciousVictoryVideoViewVillageVintageViolinVirtualVirusVisaVisitVisualVitalVividVocalVoiceVoidVolcanoVolumeVoteVoyageWageWagonWaitWalkWallWalnutWantWarfareWarmWarriorWashWaspWasteWaterWaveWayWealthWeaponWearWeaselWeatherWebWeddingWeekendWeirdWelcomeWestWetWhaleWhatWheatWheelWhenWhereWhipWhisperWideWidthWifeWildWillWinWindowWineWingWinkWinnerWinterWireWisdomWiseWishWitnessWolfWomanWonderWoodWoolWordWorkWorldWorryWorthWrapWreckWrestleWristWriteWrongYardYearYellowYouYoungYouthZebraZeroZoneZoo";
 let wordlist = null;
+
 function loadWords(lang) {
   if (wordlist != null) {
     return;
   }
-  wordlist = words.replace(/([A-Z])/g, " $1").toLowerCase().substring(1).split(" ");
-  // Verify the computed list matches the official list
+
+  wordlist = words.replace(/([A-Z])/g, " $1").toLowerCase().substring(1).split(" "); // Verify the computed list matches the official list
+
   /* istanbul ignore if */
+
   if (_wordlist.Wordlist.check(lang) !== "0x3c8acc1e7b08d8e76f9fda015ef48dc8c710a73cb7e0f77b2c18a9b5a7adde60") {
     wordlist = null;
     throw new Error("BIP39 Wordlist for en (English) FAILED");
   }
 }
+
 class LangEn extends _wordlist.Wordlist {
   constructor() {
     super("en");
   }
+
   getWord(index) {
     loadWords(this);
     return wordlist[index];
   }
+
   getWordIndex(word) {
     loadWords(this);
     return wordlist.indexOf(word);
   }
+
 }
+
 const langEn = new LangEn();
 exports.langEn = langEn;
+
 _wordlist.Wordlist.register(langEn);
 },{"./wordlist":"kJwc"}],"x4MZ":[function(require,module,exports) {
 "use strict";
@@ -16478,16 +18670,17 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.wordlists = void 0;
+
 var _langEn = require("./lang-en");
+
 const wordlists = {
   en: _langEn.langEn
 };
 exports.wordlists = wordlists;
 },{"./lang-en":"no67"}],"VsrC":[function(require,module,exports) {
-"use strict";
-
-// Wordlists
+"use strict"; // Wordlists
 // See: https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md
+
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
@@ -16509,7 +18702,9 @@ Object.defineProperty(exports, "wordlists", {
     return _wordlists.wordlists;
   }
 });
+
 var _wordlist = require("./wordlist");
+
 var _wordlists = require("./wordlists");
 },{"./wordlist":"kJwc","./wordlists":"x4MZ"}],"FIaF":[function(require,module,exports) {
 "use strict";
@@ -16532,54 +18727,79 @@ exports.getAccountPath = getAccountPath;
 exports.isValidMnemonic = isValidMnemonic;
 exports.mnemonicToEntropy = mnemonicToEntropy;
 exports.mnemonicToSeed = mnemonicToSeed;
+
 var _basex = require("@ethersproject/basex");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _strings = require("@ethersproject/strings");
+
 var _pbkdf = require("@ethersproject/pbkdf2");
+
 var _properties = require("@ethersproject/properties");
+
 var _signingKey = require("@ethersproject/signing-key");
+
 var _sha = require("@ethersproject/sha2");
+
 var _transactions = require("@ethersproject/transactions");
+
 var _wordlists = require("@ethersproject/wordlists");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 const logger = new _logger.Logger(_version.version);
-const N = _bignumber.BigNumber.from("0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141");
-// "Bitcoin seed"
+
+const N = _bignumber.BigNumber.from("0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"); // "Bitcoin seed"
+
+
 const MasterSecret = (0, _strings.toUtf8Bytes)("Bitcoin seed");
-const HardenedBit = 0x80000000;
-// Returns a byte with the MSB bits set
+const HardenedBit = 0x80000000; // Returns a byte with the MSB bits set
+
 function getUpperMask(bits) {
   return (1 << bits) - 1 << 8 - bits;
-}
-// Returns a byte with the LSB bits set
+} // Returns a byte with the LSB bits set
+
+
 function getLowerMask(bits) {
   return (1 << bits) - 1;
 }
+
 function bytes32(value) {
   return (0, _bytes.hexZeroPad)((0, _bytes.hexlify)(value), 32);
 }
+
 function base58check(data) {
   return _basex.Base58.encode((0, _bytes.concat)([data, (0, _bytes.hexDataSlice)((0, _sha.sha256)((0, _sha.sha256)(data)), 0, 4)]));
 }
+
 function getWordlist(wordlist) {
   if (wordlist == null) {
     return _wordlists.wordlists["en"];
   }
+
   if (typeof wordlist === "string") {
     const words = _wordlists.wordlists[wordlist];
+
     if (words == null) {
       logger.throwArgumentError("unknown locale", "wordlist", wordlist);
     }
+
     return words;
   }
+
   return wordlist;
 }
+
 const _constructorGuard = {};
 const defaultPath = "m/44'/60'/0'/0/0";
 exports.defaultPath = defaultPath;
 ;
+
 class HDNode {
   /**
    *  This constructor should not be called directly.
@@ -16591,9 +18811,11 @@ class HDNode {
   constructor(constructorGuard, privateKey, publicKey, parentFingerprint, chainCode, index, depth, mnemonicOrPath) {
     logger.checkNew(new.target, HDNode);
     /* istanbul ignore if */
+
     if (constructorGuard !== _constructorGuard) {
       throw new Error("HDNode constructor cannot be called directly");
     }
+
     if (privateKey) {
       const signingKey = new _signingKey.SigningKey(privateKey);
       (0, _properties.defineReadOnly)(this, "privateKey", signingKey.privateKey);
@@ -16602,12 +18824,14 @@ class HDNode {
       (0, _properties.defineReadOnly)(this, "privateKey", null);
       (0, _properties.defineReadOnly)(this, "publicKey", (0, _bytes.hexlify)(publicKey));
     }
+
     (0, _properties.defineReadOnly)(this, "parentFingerprint", parentFingerprint);
     (0, _properties.defineReadOnly)(this, "fingerprint", (0, _bytes.hexDataSlice)((0, _sha.ripemd160)((0, _sha.sha256)(this.publicKey)), 0, 4));
     (0, _properties.defineReadOnly)(this, "address", (0, _transactions.computeAddress)(this.publicKey));
     (0, _properties.defineReadOnly)(this, "chainCode", chainCode);
     (0, _properties.defineReadOnly)(this, "index", index);
     (0, _properties.defineReadOnly)(this, "depth", depth);
+
     if (mnemonicOrPath == null) {
       // From a source that does not preserve the path (e.g. extended keys)
       (0, _properties.defineReadOnly)(this, "mnemonic", null);
@@ -16622,6 +18846,7 @@ class HDNode {
       (0, _properties.defineReadOnly)(this, "path", mnemonicOrPath.path);
     }
   }
+
   get extendedKey() {
     // We only support the mainnet values for now, but if anyone needs
     // testnet values, let me know. I believe current sentiment is that
@@ -16631,54 +18856,67 @@ class HDNode {
     if (this.depth >= 256) {
       throw new Error("Depth too large!");
     }
+
     return base58check((0, _bytes.concat)([this.privateKey != null ? "0x0488ADE4" : "0x0488B21E", (0, _bytes.hexlify)(this.depth), this.parentFingerprint, (0, _bytes.hexZeroPad)((0, _bytes.hexlify)(this.index), 4), this.chainCode, this.privateKey != null ? (0, _bytes.concat)(["0x00", this.privateKey]) : this.publicKey]));
   }
+
   neuter() {
     return new HDNode(_constructorGuard, null, this.publicKey, this.parentFingerprint, this.chainCode, this.index, this.depth, this.path);
   }
+
   _derive(index) {
     if (index > 0xffffffff) {
       throw new Error("invalid index - " + String(index));
-    }
-    // Base path
+    } // Base path
+
+
     let path = this.path;
+
     if (path) {
       path += "/" + (index & ~HardenedBit);
     }
+
     const data = new Uint8Array(37);
+
     if (index & HardenedBit) {
       if (!this.privateKey) {
         throw new Error("cannot derive child of neutered node");
-      }
-      // Data = 0x00 || ser_256(k_par)
-      data.set((0, _bytes.arrayify)(this.privateKey), 1);
-      // Hardened path
+      } // Data = 0x00 || ser_256(k_par)
+
+
+      data.set((0, _bytes.arrayify)(this.privateKey), 1); // Hardened path
+
       if (path) {
         path += "'";
       }
     } else {
       // Data = ser_p(point(k_par))
       data.set((0, _bytes.arrayify)(this.publicKey));
-    }
-    // Data += ser_32(i)
+    } // Data += ser_32(i)
+
+
     for (let i = 24; i >= 0; i -= 8) {
       data[33 + (i >> 3)] = index >> 24 - i & 0xff;
     }
+
     const I = (0, _bytes.arrayify)((0, _sha.computeHmac)(_sha.SupportedAlgorithm.sha512, this.chainCode, data));
     const IL = I.slice(0, 32);
-    const IR = I.slice(32);
-    // The private key
-    let ki = null;
-    // The public key
+    const IR = I.slice(32); // The private key
+
+    let ki = null; // The public key
+
     let Ki = null;
+
     if (this.privateKey) {
       ki = bytes32(_bignumber.BigNumber.from(IL).add(this.privateKey).mod(N));
     } else {
       const ek = new _signingKey.SigningKey((0, _bytes.hexlify)(IL));
       Ki = ek._addPoint(this.publicKey);
     }
+
     let mnemonicOrPath = path;
     const srcMnemonic = this.mnemonic;
+
     if (srcMnemonic) {
       mnemonicOrPath = Object.freeze({
         phrase: srcMnemonic.phrase,
@@ -16686,49 +18924,65 @@ class HDNode {
         locale: srcMnemonic.locale || "en"
       });
     }
+
     return new HDNode(_constructorGuard, ki, Ki, this.fingerprint, bytes32(IR), index, this.depth + 1, mnemonicOrPath);
   }
+
   derivePath(path) {
     const components = path.split("/");
+
     if (components.length === 0 || components[0] === "m" && this.depth !== 0) {
       throw new Error("invalid path - " + path);
     }
+
     if (components[0] === "m") {
       components.shift();
     }
+
     let result = this;
+
     for (let i = 0; i < components.length; i++) {
       const component = components[i];
+
       if (component.match(/^[0-9]+'$/)) {
         const index = parseInt(component.substring(0, component.length - 1));
+
         if (index >= HardenedBit) {
           throw new Error("invalid path index - " + component);
         }
+
         result = result._derive(HardenedBit + index);
       } else if (component.match(/^[0-9]+$/)) {
         const index = parseInt(component);
+
         if (index >= HardenedBit) {
           throw new Error("invalid path index - " + component);
         }
+
         result = result._derive(index);
       } else {
         throw new Error("invalid path component - " + component);
       }
     }
+
     return result;
   }
+
   static _fromSeed(seed, mnemonic) {
     const seedArray = (0, _bytes.arrayify)(seed);
+
     if (seedArray.length < 16 || seedArray.length > 64) {
       throw new Error("invalid seed");
     }
+
     const I = (0, _bytes.arrayify)((0, _sha.computeHmac)(_sha.SupportedAlgorithm.sha512, MasterSecret, seedArray));
     return new HDNode(_constructorGuard, bytes32(I.slice(0, 32)), null, "0x00000000", bytes32(I.slice(32)), 0, 0, mnemonic);
   }
+
   static fromMnemonic(mnemonic, password, wordlist) {
     // If a locale name was passed in, find the associated wordlist
-    wordlist = getWordlist(wordlist);
-    // Normalize the case and spacing in the mnemonic (throws if the mnemonic is invalid)
+    wordlist = getWordlist(wordlist); // Normalize the case and spacing in the mnemonic (throws if the mnemonic is invalid)
+
     mnemonic = entropyToMnemonic(mnemonicToEntropy(mnemonic, wordlist), wordlist);
     return HDNode._fromSeed(mnemonicToSeed(mnemonic, password), {
       phrase: mnemonic,
@@ -16736,115 +18990,145 @@ class HDNode {
       locale: wordlist.locale
     });
   }
+
   static fromSeed(seed) {
     return HDNode._fromSeed(seed, null);
   }
+
   static fromExtendedKey(extendedKey) {
     const bytes = _basex.Base58.decode(extendedKey);
+
     if (bytes.length !== 82 || base58check(bytes.slice(0, 78)) !== extendedKey) {
       logger.throwArgumentError("invalid extended key", "extendedKey", "[REDACTED]");
     }
+
     const depth = bytes[4];
     const parentFingerprint = (0, _bytes.hexlify)(bytes.slice(5, 9));
     const index = parseInt((0, _bytes.hexlify)(bytes.slice(9, 13)).substring(2), 16);
     const chainCode = (0, _bytes.hexlify)(bytes.slice(13, 45));
     const key = bytes.slice(45, 78);
+
     switch ((0, _bytes.hexlify)(bytes.slice(0, 4))) {
       // Public Key
       case "0x0488b21e":
       case "0x043587cf":
         return new HDNode(_constructorGuard, null, (0, _bytes.hexlify)(key), parentFingerprint, chainCode, index, depth, null);
       // Private Key
+
       case "0x0488ade4":
       case "0x04358394 ":
         if (key[0] !== 0) {
           break;
         }
+
         return new HDNode(_constructorGuard, (0, _bytes.hexlify)(key.slice(1)), null, parentFingerprint, chainCode, index, depth, null);
     }
+
     return logger.throwArgumentError("invalid extended key", "extendedKey", "[REDACTED]");
   }
+
 }
+
 exports.HDNode = HDNode;
+
 function mnemonicToSeed(mnemonic, password) {
   if (!password) {
     password = "";
   }
+
   const salt = (0, _strings.toUtf8Bytes)("mnemonic" + password, _strings.UnicodeNormalizationForm.NFKD);
   return (0, _pbkdf.pbkdf2)((0, _strings.toUtf8Bytes)(mnemonic, _strings.UnicodeNormalizationForm.NFKD), salt, 2048, 64, "sha512");
 }
+
 function mnemonicToEntropy(mnemonic, wordlist) {
   wordlist = getWordlist(wordlist);
   logger.checkNormalize();
   const words = wordlist.split(mnemonic);
+
   if (words.length % 3 !== 0) {
     throw new Error("invalid mnemonic");
   }
+
   const entropy = (0, _bytes.arrayify)(new Uint8Array(Math.ceil(11 * words.length / 8)));
   let offset = 0;
+
   for (let i = 0; i < words.length; i++) {
     let index = wordlist.getWordIndex(words[i].normalize("NFKD"));
+
     if (index === -1) {
       throw new Error("invalid mnemonic");
     }
+
     for (let bit = 0; bit < 11; bit++) {
       if (index & 1 << 10 - bit) {
         entropy[offset >> 3] |= 1 << 7 - offset % 8;
       }
+
       offset++;
     }
   }
+
   const entropyBits = 32 * words.length / 3;
   const checksumBits = words.length / 3;
   const checksumMask = getUpperMask(checksumBits);
   const checksum = (0, _bytes.arrayify)((0, _sha.sha256)(entropy.slice(0, entropyBits / 8)))[0] & checksumMask;
+
   if (checksum !== (entropy[entropy.length - 1] & checksumMask)) {
     throw new Error("invalid checksum");
   }
+
   return (0, _bytes.hexlify)(entropy.slice(0, entropyBits / 8));
 }
+
 function entropyToMnemonic(entropy, wordlist) {
   wordlist = getWordlist(wordlist);
   entropy = (0, _bytes.arrayify)(entropy);
+
   if (entropy.length % 4 !== 0 || entropy.length < 16 || entropy.length > 32) {
     throw new Error("invalid entropy");
   }
+
   const indices = [0];
   let remainingBits = 11;
+
   for (let i = 0; i < entropy.length; i++) {
     // Consume the whole byte (with still more to go)
     if (remainingBits > 8) {
       indices[indices.length - 1] <<= 8;
       indices[indices.length - 1] |= entropy[i];
-      remainingBits -= 8;
-      // This byte will complete an 11-bit index
+      remainingBits -= 8; // This byte will complete an 11-bit index
     } else {
       indices[indices.length - 1] <<= remainingBits;
-      indices[indices.length - 1] |= entropy[i] >> 8 - remainingBits;
-      // Start the next word
+      indices[indices.length - 1] |= entropy[i] >> 8 - remainingBits; // Start the next word
+
       indices.push(entropy[i] & getLowerMask(8 - remainingBits));
       remainingBits += 3;
     }
-  }
-  // Compute the checksum bits
+  } // Compute the checksum bits
+
+
   const checksumBits = entropy.length / 4;
-  const checksum = (0, _bytes.arrayify)((0, _sha.sha256)(entropy))[0] & getUpperMask(checksumBits);
-  // Shift the checksum into the word indices
+  const checksum = (0, _bytes.arrayify)((0, _sha.sha256)(entropy))[0] & getUpperMask(checksumBits); // Shift the checksum into the word indices
+
   indices[indices.length - 1] <<= checksumBits;
   indices[indices.length - 1] |= checksum >> 8 - checksumBits;
   return wordlist.join(indices.map(index => wordlist.getWord(index)));
 }
+
 function isValidMnemonic(mnemonic, wordlist) {
   try {
     mnemonicToEntropy(mnemonic, wordlist);
     return true;
   } catch (error) {}
+
   return false;
 }
+
 function getAccountPath(index) {
   if (typeof index !== "number" || index < 0 || index >= HardenedBit || index % 1) {
     logger.throwArgumentError("invalid account index", "index", index);
   }
+
   return `m/44'/60'/${index}'/0/0`;
 }
 },{"@ethersproject/basex":"Q7g1","@ethersproject/bytes":"aqkS","@ethersproject/bignumber":"efJK","@ethersproject/strings":"ZW9k","@ethersproject/pbkdf2":"IYfJ","@ethersproject/properties":"JuuX","@ethersproject/signing-key":"KjI1","@ethersproject/sha2":"C9Hj","@ethersproject/transactions":"OW34","@ethersproject/wordlists":"VsrC","@ethersproject/logger":"kMNH","./_version":"FIaF"}],"afLU":[function(require,module,exports) {
@@ -16863,21 +19147,28 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.randomBytes = randomBytes;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
-const logger = new _logger.Logger(_version.version);
-// Debugging line for testing browser lib in node
+
+const logger = new _logger.Logger(_version.version); // Debugging line for testing browser lib in node
 //const window = { crypto: { getRandomValues: () => { } } };
+
 let anyGlobal = null;
+
 try {
   anyGlobal = window;
+
   if (anyGlobal == null) {
     throw new Error("try next");
   }
 } catch (error) {
   try {
     anyGlobal = global;
+
     if (anyGlobal == null) {
       throw new Error("try next");
     }
@@ -16885,7 +19176,9 @@ try {
     anyGlobal = {};
   }
 }
+
 let crypto = anyGlobal.crypto || anyGlobal.msCrypto;
+
 if (!crypto || !crypto.getRandomValues) {
   logger.warn("WARNING: Missing strong random number source");
   crypto = {
@@ -16896,14 +19189,17 @@ if (!crypto || !crypto.getRandomValues) {
     }
   };
 }
+
 function randomBytes(length) {
   if (length <= 0 || length > 1024 || length % 1 || length != length) {
     logger.throwArgumentError("invalid length", "length", length);
   }
+
   const result = new Uint8Array(length);
   crypto.getRandomValues(result);
   return (0, _bytes.arrayify)(result);
 }
+
 ;
 },{"@ethersproject/bytes":"aqkS","@ethersproject/logger":"kMNH","./_version":"afLU"}],"PFzQ":[function(require,module,exports) {
 "use strict";
@@ -16912,14 +19208,17 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.shuffled = shuffled;
+
 function shuffled(array) {
   array = array.slice();
+
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     const tmp = array[i];
     array[i] = array[j];
     array[j] = tmp;
   }
+
   return array;
 }
 },{}],"LoH0":[function(require,module,exports) {
@@ -16940,7 +19239,9 @@ Object.defineProperty(exports, "shuffled", {
     return _shuffle.shuffled;
   }
 });
+
 var _random = require("./random");
+
 var _shuffle = require("./shuffle");
 },{"./random":"lnvV","./shuffle":"PFzQ"}],"ilr3":[function(require,module,exports) {
 "use strict";
@@ -17762,57 +20063,73 @@ exports.looseArrayify = looseArrayify;
 exports.searchPath = searchPath;
 exports.uuidV4 = uuidV4;
 exports.zpad = zpad;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _strings = require("@ethersproject/strings");
+
 function looseArrayify(hexString) {
   if (typeof hexString === 'string' && hexString.substring(0, 2) !== '0x') {
     hexString = '0x' + hexString;
   }
+
   return (0, _bytes.arrayify)(hexString);
 }
+
 function zpad(value, length) {
   value = String(value);
+
   while (value.length < length) {
     value = '0' + value;
   }
+
   return value;
 }
+
 function getPassword(password) {
   if (typeof password === 'string') {
     return (0, _strings.toUtf8Bytes)(password, _strings.UnicodeNormalizationForm.NFKC);
   }
+
   return (0, _bytes.arrayify)(password);
 }
+
 function searchPath(object, path) {
   let currentChild = object;
   const comps = path.toLowerCase().split('/');
+
   for (let i = 0; i < comps.length; i++) {
     // Search for a child object with a case-insensitive matching key
     let matchingChild = null;
+
     for (const key in currentChild) {
       if (key.toLowerCase() === comps[i]) {
         matchingChild = currentChild[key];
         break;
       }
-    }
-    // Didn't find one. :'(
+    } // Didn't find one. :'(
+
+
     if (matchingChild === null) {
       return null;
-    }
-    // Now check this child...
+    } // Now check this child...
+
+
     currentChild = matchingChild;
   }
+
   return currentChild;
-}
-// See: https://www.ietf.org/rfc/rfc4122.txt (Section 4.4)
+} // See: https://www.ietf.org/rfc/rfc4122.txt (Section 4.4)
+
+
 function uuidV4(randomBytes) {
-  const bytes = (0, _bytes.arrayify)(randomBytes);
-  // Section: 4.1.3:
+  const bytes = (0, _bytes.arrayify)(randomBytes); // Section: 4.1.3:
   // - time_hi_and_version[12:16] = 0b0100
-  bytes[6] = bytes[6] & 0x0f | 0x40;
-  // Section 4.4
+
+  bytes[6] = bytes[6] & 0x0f | 0x40; // Section 4.4
   // - clock_seq_hi_and_reserved[6] = 0b0
   // - clock_seq_hi_and_reserved[7] = 0b1
+
   bytes[8] = bytes[8] & 0x3f | 0x80;
   const value = (0, _bytes.hexlify)(bytes);
   return [value.substring(2, 10), value.substring(10, 14), value.substring(14, 18), value.substring(18, 22), value.substring(22, 34)].join("-");
@@ -17825,46 +20142,68 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.CrowdsaleAccount = void 0;
 exports.decrypt = decrypt;
+
 var _aesJs = _interopRequireDefault(require("aes-js"));
+
 var _address = require("@ethersproject/address");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _keccak = require("@ethersproject/keccak256");
+
 var _pbkdf = require("@ethersproject/pbkdf2");
+
 var _strings = require("@ethersproject/strings");
+
 var _properties = require("@ethersproject/properties");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var _utils = require("./utils");
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 const logger = new _logger.Logger(_version.version);
+
 class CrowdsaleAccount extends _properties.Description {
   isCrowdsaleAccount(value) {
     return !!(value && value._isCrowdsaleAccount);
   }
-}
-// See: https://github.com/ethereum/pyethsaletool
+
+} // See: https://github.com/ethereum/pyethsaletool
+
+
 exports.CrowdsaleAccount = CrowdsaleAccount;
+
 function decrypt(json, password) {
   const data = JSON.parse(json);
-  password = (0, _utils.getPassword)(password);
-  // Ethereum Address
-  const ethaddr = (0, _address.getAddress)((0, _utils.searchPath)(data, "ethaddr"));
-  // Encrypted Seed
+  password = (0, _utils.getPassword)(password); // Ethereum Address
+
+  const ethaddr = (0, _address.getAddress)((0, _utils.searchPath)(data, "ethaddr")); // Encrypted Seed
+
   const encseed = (0, _utils.looseArrayify)((0, _utils.searchPath)(data, "encseed"));
+
   if (!encseed || encseed.length % 16 !== 0) {
     logger.throwArgumentError("invalid encseed", "json", json);
   }
+
   const key = (0, _bytes.arrayify)((0, _pbkdf.pbkdf2)(password, password, 2000, 32, "sha256")).slice(0, 16);
   const iv = encseed.slice(0, 16);
-  const encryptedSeed = encseed.slice(16);
-  // Decrypt the seed
+  const encryptedSeed = encseed.slice(16); // Decrypt the seed
+
   const aesCbc = new _aesJs.default.ModeOfOperation.cbc(key, iv);
-  const seed = _aesJs.default.padding.pkcs7.strip((0, _bytes.arrayify)(aesCbc.decrypt(encryptedSeed)));
-  // This wallet format is weird... Convert the binary encoded hex to a string.
+
+  const seed = _aesJs.default.padding.pkcs7.strip((0, _bytes.arrayify)(aesCbc.decrypt(encryptedSeed))); // This wallet format is weird... Convert the binary encoded hex to a string.
+
+
   let seedHex = "";
+
   for (let i = 0; i < seed.length; i++) {
     seedHex += String.fromCharCode(seed[i]);
   }
+
   const seedHexBytes = (0, _strings.toUtf8Bytes)(seedHex);
   const privateKey = (0, _keccak.keccak256)(seedHexBytes);
   return new CrowdsaleAccount({
@@ -17882,32 +20221,41 @@ Object.defineProperty(exports, "__esModule", {
 exports.getJsonWalletAddress = getJsonWalletAddress;
 exports.isCrowdsaleWallet = isCrowdsaleWallet;
 exports.isKeystoreWallet = isKeystoreWallet;
+
 var _address = require("@ethersproject/address");
+
 function isCrowdsaleWallet(json) {
   let data = null;
+
   try {
     data = JSON.parse(json);
   } catch (error) {
     return false;
   }
+
   return data.encseed && data.ethaddr;
 }
+
 function isKeystoreWallet(json) {
   let data = null;
+
   try {
     data = JSON.parse(json);
   } catch (error) {
     return false;
   }
+
   if (!data.version || parseInt(data.version) !== data.version || parseInt(data.version) !== 3) {
     return false;
-  }
-  // @TODO: Put more checks to make sure it has kdf, iv and all that good stuff
+  } // @TODO: Put more checks to make sure it has kdf, iv and all that good stuff
+
+
   return true;
-}
-//export function isJsonWallet(json: string): boolean {
+} //export function isJsonWallet(json: string): boolean {
 //    return (isSecretStorageWallet(json) || isCrowdsaleWallet(json));
 //}
+
+
 function getJsonWalletAddress(json) {
   if (isCrowdsaleWallet(json)) {
     try {
@@ -17916,6 +20264,7 @@ function getJsonWalletAddress(json) {
       return null;
     }
   }
+
   if (isKeystoreWallet(json)) {
     try {
       return (0, _address.getAddress)(JSON.parse(json).address);
@@ -17923,6 +20272,7 @@ function getJsonWalletAddress(json) {
       return null;
     }
   }
+
   return null;
 }
 },{"@ethersproject/address":"a1wm"}],"znz8":[function(require,module,exports) {
@@ -18425,26 +20775,42 @@ exports.KeystoreAccount = void 0;
 exports.decrypt = decrypt;
 exports.decryptSync = decryptSync;
 exports.encrypt = encrypt;
+
 var _aesJs = _interopRequireDefault(require("aes-js"));
+
 var _scryptJs = _interopRequireDefault(require("scrypt-js"));
+
 var _address = require("@ethersproject/address");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _hdnode = require("@ethersproject/hdnode");
+
 var _keccak = require("@ethersproject/keccak256");
+
 var _pbkdf = require("@ethersproject/pbkdf2");
+
 var _random = require("@ethersproject/random");
+
 var _properties = require("@ethersproject/properties");
+
 var _transactions = require("@ethersproject/transactions");
+
 var _utils = require("./utils");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -18453,6 +20819,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -18460,76 +20827,100 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
-const logger = new _logger.Logger(_version.version);
-// Exported Types
+
+const logger = new _logger.Logger(_version.version); // Exported Types
+
 function hasMnemonic(value) {
   return value != null && value.mnemonic && value.mnemonic.phrase;
 }
+
 class KeystoreAccount extends _properties.Description {
   isKeystoreAccount(value) {
     return !!(value && value._isKeystoreAccount);
   }
+
 }
+
 exports.KeystoreAccount = KeystoreAccount;
+
 function _decrypt(data, key, ciphertext) {
   const cipher = (0, _utils.searchPath)(data, "crypto/cipher");
+
   if (cipher === "aes-128-ctr") {
     const iv = (0, _utils.looseArrayify)((0, _utils.searchPath)(data, "crypto/cipherparams/iv"));
     const counter = new _aesJs.default.Counter(iv);
     const aesCtr = new _aesJs.default.ModeOfOperation.ctr(key, counter);
     return (0, _bytes.arrayify)(aesCtr.decrypt(ciphertext));
   }
+
   return null;
 }
+
 function _getAccount(data, key) {
   const ciphertext = (0, _utils.looseArrayify)((0, _utils.searchPath)(data, "crypto/ciphertext"));
   const computedMAC = (0, _bytes.hexlify)((0, _keccak.keccak256)((0, _bytes.concat)([key.slice(16, 32), ciphertext]))).substring(2);
+
   if (computedMAC !== (0, _utils.searchPath)(data, "crypto/mac").toLowerCase()) {
     throw new Error("invalid password");
   }
+
   const privateKey = _decrypt(data, key.slice(0, 16), ciphertext);
+
   if (!privateKey) {
     logger.throwError("unsupported cipher", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
       operation: "decrypt"
     });
   }
+
   const mnemonicKey = key.slice(32, 64);
   const address = (0, _transactions.computeAddress)(privateKey);
+
   if (data.address) {
     let check = data.address.toLowerCase();
+
     if (check.substring(0, 2) !== "0x") {
       check = "0x" + check;
     }
+
     if ((0, _address.getAddress)(check) !== address) {
       throw new Error("address mismatch");
     }
   }
+
   const account = {
     _isKeystoreAccount: true,
     address: address,
     privateKey: (0, _bytes.hexlify)(privateKey)
-  };
-  // Version 0.1 x-ethers metadata must contain an encrypted mnemonic phrase
+  }; // Version 0.1 x-ethers metadata must contain an encrypted mnemonic phrase
+
   if ((0, _utils.searchPath)(data, "x-ethers/version") === "0.1") {
     const mnemonicCiphertext = (0, _utils.looseArrayify)((0, _utils.searchPath)(data, "x-ethers/mnemonicCiphertext"));
     const mnemonicIv = (0, _utils.looseArrayify)((0, _utils.searchPath)(data, "x-ethers/mnemonicCounter"));
     const mnemonicCounter = new _aesJs.default.Counter(mnemonicIv);
     const mnemonicAesCtr = new _aesJs.default.ModeOfOperation.ctr(mnemonicKey, mnemonicCounter);
+
     const path = (0, _utils.searchPath)(data, "x-ethers/path") || _hdnode.defaultPath;
+
     const locale = (0, _utils.searchPath)(data, "x-ethers/locale") || "en";
     const entropy = (0, _bytes.arrayify)(mnemonicAesCtr.decrypt(mnemonicCiphertext));
+
     try {
       const mnemonic = (0, _hdnode.entropyToMnemonic)(entropy, locale);
+
       const node = _hdnode.HDNode.fromMnemonic(mnemonic, null, locale).derivePath(path);
+
       if (node.privateKey != account.privateKey) {
         throw new Error("mnemonic mismatch");
       }
+
       account.mnemonic = node.mnemonic;
     } catch (error) {
       // If we don't have the locale wordlist installed to
@@ -18540,43 +20931,54 @@ function _getAccount(data, key) {
       }
     }
   }
+
   return new KeystoreAccount(account);
 }
+
 function pbkdf2Sync(passwordBytes, salt, count, dkLen, prfFunc) {
   return (0, _bytes.arrayify)((0, _pbkdf.pbkdf2)(passwordBytes, salt, count, dkLen, prfFunc));
 }
+
 function pbkdf2(passwordBytes, salt, count, dkLen, prfFunc) {
   return Promise.resolve(pbkdf2Sync(passwordBytes, salt, count, dkLen, prfFunc));
 }
+
 function _computeKdfKey(data, password, pbkdf2Func, scryptFunc, progressCallback) {
   const passwordBytes = (0, _utils.getPassword)(password);
   const kdf = (0, _utils.searchPath)(data, "crypto/kdf");
+
   if (kdf && typeof kdf === "string") {
     const throwError = function (name, value) {
       return logger.throwArgumentError("invalid key-derivation function parameters", name, value);
     };
+
     if (kdf.toLowerCase() === "scrypt") {
       const salt = (0, _utils.looseArrayify)((0, _utils.searchPath)(data, "crypto/kdfparams/salt"));
       const N = parseInt((0, _utils.searchPath)(data, "crypto/kdfparams/n"));
       const r = parseInt((0, _utils.searchPath)(data, "crypto/kdfparams/r"));
-      const p = parseInt((0, _utils.searchPath)(data, "crypto/kdfparams/p"));
-      // Check for all required parameters
+      const p = parseInt((0, _utils.searchPath)(data, "crypto/kdfparams/p")); // Check for all required parameters
+
       if (!N || !r || !p) {
         throwError("kdf", kdf);
-      }
-      // Make sure N is a power of 2
+      } // Make sure N is a power of 2
+
+
       if ((N & N - 1) !== 0) {
         throwError("N", N);
       }
+
       const dkLen = parseInt((0, _utils.searchPath)(data, "crypto/kdfparams/dklen"));
+
       if (dkLen !== 32) {
         throwError("dklen", dkLen);
       }
+
       return scryptFunc(passwordBytes, salt, N, r, p, 64, progressCallback);
     } else if (kdf.toLowerCase() === "pbkdf2") {
       const salt = (0, _utils.looseArrayify)((0, _utils.searchPath)(data, "crypto/kdfparams/salt"));
       let prfFunc = null;
       const prf = (0, _utils.searchPath)(data, "crypto/kdfparams/prf");
+
       if (prf === "hmac-sha256") {
         prfFunc = "sha256";
       } else if (prf === "hmac-sha512") {
@@ -18584,21 +20986,29 @@ function _computeKdfKey(data, password, pbkdf2Func, scryptFunc, progressCallback
       } else {
         throwError("prf", prf);
       }
+
       const count = parseInt((0, _utils.searchPath)(data, "crypto/kdfparams/c"));
       const dkLen = parseInt((0, _utils.searchPath)(data, "crypto/kdfparams/dklen"));
+
       if (dkLen !== 32) {
         throwError("dklen", dkLen);
       }
+
       return pbkdf2Func(passwordBytes, salt, count, dkLen, prfFunc);
     }
   }
+
   return logger.throwArgumentError("unsupported key-derivation function", "kdf", kdf);
 }
+
 function decryptSync(json, password) {
   const data = JSON.parse(json);
+
   const key = _computeKdfKey(data, password, pbkdf2Sync, _scryptJs.default.syncScrypt);
+
   return _getAccount(data, key);
 }
+
 function decrypt(json, password, progressCallback) {
   return __awaiter(this, void 0, void 0, function* () {
     const data = JSON.parse(json);
@@ -18606,106 +21016,129 @@ function decrypt(json, password, progressCallback) {
     return _getAccount(data, key);
   });
 }
+
 function encrypt(account, password, options, progressCallback) {
   try {
     // Check the address matches the private key
     if ((0, _address.getAddress)(account.address) !== (0, _transactions.computeAddress)(account.privateKey)) {
       throw new Error("address/privateKey mismatch");
-    }
-    // Check the mnemonic (if any) matches the private key
+    } // Check the mnemonic (if any) matches the private key
+
+
     if (hasMnemonic(account)) {
       const mnemonic = account.mnemonic;
+
       const node = _hdnode.HDNode.fromMnemonic(mnemonic.phrase, null, mnemonic.locale).derivePath(mnemonic.path || _hdnode.defaultPath);
+
       if (node.privateKey != account.privateKey) {
         throw new Error("mnemonic mismatch");
       }
     }
   } catch (e) {
     return Promise.reject(e);
-  }
-  // The options are optional, so adjust the call as needed
+  } // The options are optional, so adjust the call as needed
+
+
   if (typeof options === "function" && !progressCallback) {
     progressCallback = options;
     options = {};
   }
+
   if (!options) {
     options = {};
   }
+
   const privateKey = (0, _bytes.arrayify)(account.privateKey);
   const passwordBytes = (0, _utils.getPassword)(password);
   let entropy = null;
   let path = null;
   let locale = null;
+
   if (hasMnemonic(account)) {
     const srcMnemonic = account.mnemonic;
     entropy = (0, _bytes.arrayify)((0, _hdnode.mnemonicToEntropy)(srcMnemonic.phrase, srcMnemonic.locale || "en"));
     path = srcMnemonic.path || _hdnode.defaultPath;
     locale = srcMnemonic.locale || "en";
   }
+
   let client = options.client;
+
   if (!client) {
     client = "ethers.js";
-  }
-  // Check/generate the salt
+  } // Check/generate the salt
+
+
   let salt = null;
+
   if (options.salt) {
     salt = (0, _bytes.arrayify)(options.salt);
   } else {
     salt = (0, _random.randomBytes)(32);
     ;
-  }
-  // Override initialization vector
+  } // Override initialization vector
+
+
   let iv = null;
+
   if (options.iv) {
     iv = (0, _bytes.arrayify)(options.iv);
+
     if (iv.length !== 16) {
       throw new Error("invalid iv");
     }
   } else {
     iv = (0, _random.randomBytes)(16);
-  }
-  // Override the uuid
+  } // Override the uuid
+
+
   let uuidRandom = null;
+
   if (options.uuid) {
     uuidRandom = (0, _bytes.arrayify)(options.uuid);
+
     if (uuidRandom.length !== 16) {
       throw new Error("invalid uuid");
     }
   } else {
     uuidRandom = (0, _random.randomBytes)(16);
-  }
-  // Override the scrypt password-based key derivation function parameters
+  } // Override the scrypt password-based key derivation function parameters
+
+
   let N = 1 << 17,
-    r = 8,
-    p = 1;
+      r = 8,
+      p = 1;
+
   if (options.scrypt) {
     if (options.scrypt.N) {
       N = options.scrypt.N;
     }
+
     if (options.scrypt.r) {
       r = options.scrypt.r;
     }
+
     if (options.scrypt.p) {
       p = options.scrypt.p;
     }
-  }
-  // We take 64 bytes:
+  } // We take 64 bytes:
   //   - 32 bytes   As normal for the Web3 secret storage (derivedKey, macPrefix)
   //   - 32 bytes   AES key to encrypt mnemonic with (required here to be Ethers Wallet)
+
+
   return _scryptJs.default.scrypt(passwordBytes, salt, N, r, p, 64, progressCallback).then(key => {
-    key = (0, _bytes.arrayify)(key);
-    // This will be used to encrypt the wallet (as per Web3 secret storage)
+    key = (0, _bytes.arrayify)(key); // This will be used to encrypt the wallet (as per Web3 secret storage)
+
     const derivedKey = key.slice(0, 16);
-    const macPrefix = key.slice(16, 32);
-    // This will be used to encrypt the mnemonic phrase (if any)
-    const mnemonicKey = key.slice(32, 64);
-    // Encrypt the private key
+    const macPrefix = key.slice(16, 32); // This will be used to encrypt the mnemonic phrase (if any)
+
+    const mnemonicKey = key.slice(32, 64); // Encrypt the private key
+
     const counter = new _aesJs.default.Counter(iv);
     const aesCtr = new _aesJs.default.ModeOfOperation.ctr(derivedKey, counter);
-    const ciphertext = (0, _bytes.arrayify)(aesCtr.encrypt(privateKey));
-    // Compute the message authentication code, used to check the password
-    const mac = (0, _keccak.keccak256)((0, _bytes.concat)([macPrefix, ciphertext]));
-    // See: https://github.com/ethereum/wiki/wiki/Web3-Secret-Storage-Definition
+    const ciphertext = (0, _bytes.arrayify)(aesCtr.encrypt(privateKey)); // Compute the message authentication code, used to check the password
+
+    const mac = (0, _keccak.keccak256)((0, _bytes.concat)([macPrefix, ciphertext])); // See: https://github.com/ethereum/wiki/wiki/Web3-Secret-Storage-Definition
+
     const data = {
       address: account.address.substring(2).toLowerCase(),
       id: (0, _utils.uuidV4)(uuidRandom),
@@ -18726,8 +21159,8 @@ function encrypt(account, password, options, progressCallback) {
         },
         mac: mac.substring(2)
       }
-    };
-    // If we have a mnemonic, encrypt it into the JSON wallet
+    }; // If we have a mnemonic, encrypt it into the JSON wallet
+
     if (entropy) {
       const mnemonicIv = (0, _random.randomBytes)(16);
       const mnemonicCounter = new _aesJs.default.Counter(mnemonicIv);
@@ -18745,6 +21178,7 @@ function encrypt(account, password, options, progressCallback) {
         version: "0.1"
       };
     }
+
     return JSON.stringify(data);
   });
 }
@@ -18798,32 +21232,44 @@ Object.defineProperty(exports, "isKeystoreWallet", {
     return _inspect.isKeystoreWallet;
   }
 });
+
 var _crowdsale = require("./crowdsale");
+
 var _inspect = require("./inspect");
+
 var _keystore = require("./keystore");
+
 function decryptJsonWallet(json, password, progressCallback) {
   if ((0, _inspect.isCrowdsaleWallet)(json)) {
     if (progressCallback) {
       progressCallback(0);
     }
+
     const account = (0, _crowdsale.decrypt)(json, password);
+
     if (progressCallback) {
       progressCallback(1);
     }
+
     return Promise.resolve(account);
   }
+
   if ((0, _inspect.isKeystoreWallet)(json)) {
     return (0, _keystore.decrypt)(json, password, progressCallback);
   }
+
   return Promise.reject(new Error("invalid JSON wallet"));
 }
+
 function decryptJsonWalletSync(json, password) {
   if ((0, _inspect.isCrowdsaleWallet)(json)) {
     return (0, _crowdsale.decrypt)(json, password);
   }
+
   if ((0, _inspect.isKeystoreWallet)(json)) {
     return (0, _keystore.decryptSync)(json, password);
   }
+
   throw new Error("invalid JSON wallet");
 }
 },{"./crowdsale":"dEnt","./inspect":"L5tn","./keystore":"DfTj"}],"yJik":[function(require,module,exports) {
@@ -18844,26 +21290,42 @@ Object.defineProperty(exports, "__esModule", {
 exports.Wallet = void 0;
 exports.verifyMessage = verifyMessage;
 exports.verifyTypedData = verifyTypedData;
+
 var _address = require("@ethersproject/address");
+
 var _abstractProvider = require("@ethersproject/abstract-provider");
+
 var _abstractSigner = require("@ethersproject/abstract-signer");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _hash = require("@ethersproject/hash");
+
 var _hdnode = require("@ethersproject/hdnode");
+
 var _keccak = require("@ethersproject/keccak256");
+
 var _properties = require("@ethersproject/properties");
+
 var _random = require("@ethersproject/random");
+
 var _signingKey = require("@ethersproject/signing-key");
+
 var _jsonWallets = require("@ethersproject/json-wallets");
+
 var _transactions = require("@ethersproject/transactions");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -18872,6 +21334,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -18879,31 +21342,40 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 const logger = new _logger.Logger(_version.version);
+
 function isAccount(value) {
   return value != null && (0, _bytes.isHexString)(value.privateKey, 32) && value.address != null;
 }
+
 function hasMnemonic(value) {
   const mnemonic = value.mnemonic;
   return mnemonic && mnemonic.phrase;
 }
+
 class Wallet extends _abstractSigner.Signer {
   constructor(privateKey, provider) {
     logger.checkNew(new.target, Wallet);
     super();
+
     if (isAccount(privateKey)) {
       const signingKey = new _signingKey.SigningKey(privateKey.privateKey);
       (0, _properties.defineReadOnly)(this, "_signingKey", () => signingKey);
       (0, _properties.defineReadOnly)(this, "address", (0, _transactions.computeAddress)(this.publicKey));
+
       if (this.address !== (0, _address.getAddress)(privateKey.address)) {
         logger.throwArgumentError("privateKey/address mismatch", "privateKey", "[REDACTED]");
       }
+
       if (hasMnemonic(privateKey)) {
         const srcMnemonic = privateKey.mnemonic;
         (0, _properties.defineReadOnly)(this, "_mnemonic", () => ({
@@ -18912,7 +21384,9 @@ class Wallet extends _abstractSigner.Signer {
           locale: srcMnemonic.locale || "en"
         }));
         const mnemonic = this.mnemonic;
+
         const node = _hdnode.HDNode.fromMnemonic(mnemonic.phrase, null, mnemonic.locale).derivePath(mnemonic.path);
+
         if ((0, _transactions.computeAddress)(node.privateKey) !== this.address) {
           logger.throwArgumentError("mnemonic/address mismatch", "privateKey", "[REDACTED]");
         }
@@ -18925,6 +21399,7 @@ class Wallet extends _abstractSigner.Signer {
         if (privateKey.curve !== "secp256k1") {
           logger.throwArgumentError("unsupported curve; must be secp256k1", "privateKey", "[REDACTED]");
         }
+
         (0, _properties.defineReadOnly)(this, "_signingKey", () => privateKey);
       } else {
         // A lot of common tools do not prefix private keys with a 0x (see: #1166)
@@ -18933,50 +21408,66 @@ class Wallet extends _abstractSigner.Signer {
             privateKey = "0x" + privateKey;
           }
         }
+
         const signingKey = new _signingKey.SigningKey(privateKey);
         (0, _properties.defineReadOnly)(this, "_signingKey", () => signingKey);
       }
+
       (0, _properties.defineReadOnly)(this, "_mnemonic", () => null);
       (0, _properties.defineReadOnly)(this, "address", (0, _transactions.computeAddress)(this.publicKey));
     }
     /* istanbul ignore if */
+
+
     if (provider && !_abstractProvider.Provider.isProvider(provider)) {
       logger.throwArgumentError("invalid provider", "provider", provider);
     }
+
     (0, _properties.defineReadOnly)(this, "provider", provider || null);
   }
+
   get mnemonic() {
     return this._mnemonic();
   }
+
   get privateKey() {
     return this._signingKey().privateKey;
   }
+
   get publicKey() {
     return this._signingKey().publicKey;
   }
+
   getAddress() {
     return Promise.resolve(this.address);
   }
+
   connect(provider) {
     return new Wallet(this, provider);
   }
+
   signTransaction(transaction) {
     return (0, _properties.resolveProperties)(transaction).then(tx => {
       if (tx.from != null) {
         if ((0, _address.getAddress)(tx.from) !== this.address) {
           logger.throwArgumentError("transaction from address mismatch", "transaction.from", transaction.from);
         }
+
         delete tx.from;
       }
+
       const signature = this._signingKey().signDigest((0, _keccak.keccak256)((0, _transactions.serialize)(tx)));
+
       return (0, _transactions.serialize)(tx, signature);
     });
   }
+
   signMessage(message) {
     return __awaiter(this, void 0, void 0, function* () {
       return (0, _bytes.joinSignature)(this._signingKey().signDigest((0, _hash.hashMessage)(message)));
     });
   }
+
   _signTypedData(domain, types, value) {
     return __awaiter(this, void 0, void 0, function* () {
       // Populate any ENS names
@@ -18987,57 +21478,75 @@ class Wallet extends _abstractSigner.Signer {
             value: name
           });
         }
+
         return this.provider.resolveName(name);
       });
       return (0, _bytes.joinSignature)(this._signingKey().signDigest(_hash._TypedDataEncoder.hash(populated.domain, types, populated.value)));
     });
   }
+
   encrypt(password, options, progressCallback) {
     if (typeof options === "function" && !progressCallback) {
       progressCallback = options;
       options = {};
     }
+
     if (progressCallback && typeof progressCallback !== "function") {
       throw new Error("invalid callback");
     }
+
     if (!options) {
       options = {};
     }
+
     return (0, _jsonWallets.encryptKeystore)(this, password, options, progressCallback);
   }
   /**
    *  Static methods to create Wallet instances.
    */
+
+
   static createRandom(options) {
     let entropy = (0, _random.randomBytes)(16);
+
     if (!options) {
       options = {};
     }
+
     if (options.extraEntropy) {
       entropy = (0, _bytes.arrayify)((0, _bytes.hexDataSlice)((0, _keccak.keccak256)((0, _bytes.concat)([entropy, options.extraEntropy])), 0, 16));
     }
+
     const mnemonic = (0, _hdnode.entropyToMnemonic)(entropy, options.locale);
     return Wallet.fromMnemonic(mnemonic, options.path, options.locale);
   }
+
   static fromEncryptedJson(json, password, progressCallback) {
     return (0, _jsonWallets.decryptJsonWallet)(json, password, progressCallback).then(account => {
       return new Wallet(account);
     });
   }
+
   static fromEncryptedJsonSync(json, password) {
     return new Wallet((0, _jsonWallets.decryptJsonWalletSync)(json, password));
   }
+
   static fromMnemonic(mnemonic, path, wordlist) {
     if (!path) {
       path = _hdnode.defaultPath;
     }
+
     return new Wallet(_hdnode.HDNode.fromMnemonic(mnemonic, null, wordlist).derivePath(path));
   }
+
 }
+
 exports.Wallet = Wallet;
+
 function verifyMessage(message, signature) {
   return (0, _transactions.recoverAddress)((0, _hash.hashMessage)(message), signature);
 }
+
 function verifyTypedData(domain, types, value, signature) {
   return (0, _transactions.recoverAddress)(_hash._TypedDataEncoder.hash(domain, types, value), signature);
 }
@@ -19057,83 +21566,108 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.getNetwork = getNetwork;
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 const logger = new _logger.Logger(_version.version);
 ;
+
 function isRenetworkable(value) {
   return value && typeof value.renetwork === "function";
 }
+
 function ethDefaultProvider(network) {
   const func = function (providers, options) {
     if (options == null) {
       options = {};
     }
+
     const providerList = [];
+
     if (providers.InfuraProvider) {
       try {
         providerList.push(new providers.InfuraProvider(network, options.infura));
       } catch (error) {}
     }
+
     if (providers.EtherscanProvider) {
       try {
         providerList.push(new providers.EtherscanProvider(network, options.etherscan));
       } catch (error) {}
     }
+
     if (providers.AlchemyProvider) {
       try {
         providerList.push(new providers.AlchemyProvider(network, options.alchemy));
       } catch (error) {}
     }
+
     if (providers.PocketProvider) {
       // These networks are currently faulty on Pocket as their
       // network does not handle the Berlin hardfork, which is
       // live on these ones.
       // @TODO: This goes away once Pocket has upgraded their nodes
       const skip = ["goerli", "ropsten", "rinkeby"];
+
       try {
         const provider = new providers.PocketProvider(network);
+
         if (provider.network && skip.indexOf(provider.network.name) === -1) {
           providerList.push(provider);
         }
       } catch (error) {}
     }
+
     if (providers.CloudflareProvider) {
       try {
         providerList.push(new providers.CloudflareProvider(network));
       } catch (error) {}
     }
+
     if (providerList.length === 0) {
       return null;
     }
+
     if (providers.FallbackProvider) {
       let quorum = 1;
+
       if (options.quorum != null) {
         quorum = options.quorum;
       } else if (network === "homestead") {
         quorum = 2;
       }
+
       return new providers.FallbackProvider(providerList, quorum);
     }
+
     return providerList[0];
   };
+
   func.renetwork = function (network) {
     return ethDefaultProvider(network);
   };
+
   return func;
 }
+
 function etcDefaultProvider(url, network) {
   const func = function (providers, options) {
     if (providers.JsonRpcProvider) {
       return new providers.JsonRpcProvider(url, network);
     }
+
     return null;
   };
+
   func.renetwork = function (network) {
     return etcDefaultProvider(url, network);
   };
+
   return func;
 }
+
 const homestead = {
   chainId: 1,
   ensAddress: "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e",
@@ -19225,14 +21759,17 @@ const networks = {
  *  Converts a named common networks or chain ID (network ID) to a Network
  *  and verifies a network is a valid Network..
  */
+
 function getNetwork(network) {
   // No network (null)
   if (network == null) {
     return null;
   }
+
   if (typeof network === "number") {
     for (const name in networks) {
       const standard = networks[name];
+
       if (standard.chainId === network) {
         return {
           name: standard.name,
@@ -19242,16 +21779,20 @@ function getNetwork(network) {
         };
       }
     }
+
     return {
       chainId: network,
       name: "unknown"
     };
   }
+
   if (typeof network === "string") {
     const standard = networks[network];
+
     if (standard == null) {
       return null;
     }
+
     return {
       name: standard.name,
       chainId: standard.chainId,
@@ -19259,29 +21800,35 @@ function getNetwork(network) {
       _defaultProvider: standard._defaultProvider || null
     };
   }
-  const standard = networks[network.name];
-  // Not a standard network; check that it is a valid network in general
+
+  const standard = networks[network.name]; // Not a standard network; check that it is a valid network in general
+
   if (!standard) {
     if (typeof network.chainId !== "number") {
       logger.throwArgumentError("invalid network chainId", "network", network);
     }
+
     return network;
-  }
-  // Make sure the chainId matches the expected network chainId (or is 0; disable EIP-155)
+  } // Make sure the chainId matches the expected network chainId (or is 0; disable EIP-155)
+
+
   if (network.chainId !== 0 && network.chainId !== standard.chainId) {
     logger.throwArgumentError("network chainId mismatch", "network", network);
-  }
-  // @TODO: In the next major version add an attach function to a defaultProvider
+  } // @TODO: In the next major version add an attach function to a defaultProvider
   // class and move the _defaultProvider internal to this file (extend Network)
+
+
   let defaultProvider = network._defaultProvider || null;
+
   if (defaultProvider == null && standard._defaultProvider) {
     if (isRenetworkable(standard._defaultProvider)) {
       defaultProvider = standard._defaultProvider.renetwork(network);
     } else {
       defaultProvider = standard._defaultProvider;
     }
-  }
-  // Standard Network (allow overriding the ENS address)
+  } // Standard Network (allow overriding the ENS address)
+
+
   return {
     name: network.name,
     chainId: standard.chainId,
@@ -19297,21 +21844,28 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.decode = decode;
 exports.encode = encode;
+
 var _bytes = require("@ethersproject/bytes");
+
 function decode(textData) {
   textData = atob(textData);
   const data = [];
+
   for (let i = 0; i < textData.length; i++) {
     data.push(textData.charCodeAt(i));
   }
+
   return (0, _bytes.arrayify)(data);
 }
+
 function encode(data) {
   data = (0, _bytes.arrayify)(data);
   let textData = "";
+
   for (let i = 0; i < data.length; i++) {
     textData += String.fromCharCode(data[i]);
   }
+
   return btoa(textData);
 }
 },{"@ethersproject/bytes":"aqkS"}],"ybca":[function(require,module,exports) {
@@ -19332,6 +21886,7 @@ Object.defineProperty(exports, "encode", {
     return _base.encode;
   }
 });
+
 var _base = require("./base64");
 },{"./base64":"BSE9"}],"J8Dr":[function(require,module,exports) {
 "use strict";
@@ -19349,13 +21904,16 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.getUrl = getUrl;
+
 var _bytes = require("@ethersproject/bytes");
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -19364,6 +21922,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -19371,27 +21930,36 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 function getUrl(href, options) {
   return __awaiter(this, void 0, void 0, function* () {
     if (options == null) {
       options = {};
     }
+
     const request = {
       method: options.method || "GET",
       headers: options.headers || {},
       body: options.body || undefined
     };
+
     if (options.skipFetchSetup !== true) {
       request.mode = "cors"; // no-cors, cors, *same-origin
+
       request.cache = "no-cache"; // *default, no-cache, reload, force-cache, only-if-cached
+
       request.credentials = "same-origin"; // include, *same-origin, omit
+
       request.redirect = "follow"; // manual, *follow, error
+
       request.referrer = "client"; // no-referrer, *client
     }
 
@@ -19399,6 +21967,7 @@ function getUrl(href, options) {
     const response = yield fetch(href, request);
     const body = yield response.arrayBuffer();
     const headers = {};
+
     if (response.headers.forEach) {
       response.headers.forEach((value, key) => {
         headers[key.toLowerCase()] = value;
@@ -19408,6 +21977,7 @@ function getUrl(href, options) {
         headers[key.toLowerCase()] = response.headers.get(key);
       });
     }
+
     return {
       headers: headers,
       statusCode: response.status,
@@ -19425,19 +21995,28 @@ Object.defineProperty(exports, "__esModule", {
 exports._fetchData = _fetchData;
 exports.fetchJson = fetchJson;
 exports.poll = poll;
+
 var _base = require("@ethersproject/base64");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _properties = require("@ethersproject/properties");
+
 var _strings = require("@ethersproject/strings");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var _geturl = require("./geturl");
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -19446,6 +22025,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -19453,42 +22033,53 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 const logger = new _logger.Logger(_version.version);
+
 function staller(duration) {
   return new Promise(resolve => {
     setTimeout(resolve, duration);
   });
 }
+
 function bodyify(value, type) {
   if (value == null) {
     return null;
   }
+
   if (typeof value === "string") {
     return value;
   }
+
   if ((0, _bytes.isBytesLike)(value)) {
     if (type && (type.split("/")[0] === "text" || type.split(";")[0].trim() === "application/json")) {
       try {
         return (0, _strings.toUtf8String)(value);
       } catch (error) {}
+
       ;
     }
+
     return (0, _bytes.hexlify)(value);
   }
+
   return value;
-}
-// This API is still a work in progress; the future changes will likely be:
+} // This API is still a work in progress; the future changes will likely be:
 // - ConnectionInfo => FetchDataRequest<T = any>
 // - FetchDataRequest.body? = string | Uint8Array | { contentType: string, data: string | Uint8Array }
 //   - If string => text/plain, Uint8Array => application/octet-stream (if content-type unspecified)
 // - FetchDataRequest.processFunc = (body: Uint8Array, response: FetchDataResponse) => T
 // For this reason, it should be considered internal until the API is finalized
+
+
 function _fetchData(connection, body, processFunc) {
   // How many times to retry in the event of a throttle
   const attemptLimit = typeof connection === "object" && connection.throttleLimit != null ? connection.throttleLimit : 12;
@@ -19497,35 +22088,42 @@ function _fetchData(connection, body, processFunc) {
   const throttleSlotInterval = typeof connection === "object" && typeof connection.throttleSlotInterval === "number" ? connection.throttleSlotInterval : 100;
   logger.assertArgument(throttleSlotInterval > 0 && throttleSlotInterval % 1 === 0, "invalid connection throttle slot interval", "connection.throttleSlotInterval", throttleSlotInterval);
   const headers = {};
-  let url = null;
-  // @TODO: Allow ConnectionInfo to override some of these values
+  let url = null; // @TODO: Allow ConnectionInfo to override some of these values
+
   const options = {
     method: "GET"
   };
   let allow304 = false;
   let timeout = 2 * 60 * 1000;
+
   if (typeof connection === "string") {
     url = connection;
   } else if (typeof connection === "object") {
     if (connection == null || connection.url == null) {
       logger.throwArgumentError("missing URL", "connection.url", connection);
     }
+
     url = connection.url;
+
     if (typeof connection.timeout === "number" && connection.timeout > 0) {
       timeout = connection.timeout;
     }
+
     if (connection.headers) {
       for (const key in connection.headers) {
         headers[key.toLowerCase()] = {
           key: key,
           value: String(connection.headers[key])
         };
+
         if (["if-none-match", "if-modified-since"].indexOf(key.toLowerCase()) >= 0) {
           allow304 = true;
         }
       }
     }
+
     options.allowGzip = !!connection.allowGzip;
+
     if (connection.user != null && connection.password != null) {
       if (url.substring(0, 6) !== "https:" && connection.allowInsecureAuthentication !== true) {
         logger.throwError("basic authentication requires a secure https url", _logger.Logger.errors.INVALID_ARGUMENT, {
@@ -19535,6 +22133,7 @@ function _fetchData(connection, body, processFunc) {
           password: "[REDACTED]"
         });
       }
+
       const authorization = connection.user + ":" + connection.password;
       headers["authorization"] = {
         key: "Authorization",
@@ -19542,15 +22141,18 @@ function _fetchData(connection, body, processFunc) {
       };
     }
   }
+
   if (body) {
     options.method = "POST";
     options.body = body;
+
     if (headers["content-type"] == null) {
       headers["content-type"] = {
         key: "Content-Type",
         value: "application/octet-stream"
       };
     }
+
     if (headers["content-length"] == null) {
       headers["content-length"] = {
         key: "Content-Length",
@@ -19558,12 +22160,14 @@ function _fetchData(connection, body, processFunc) {
       };
     }
   }
+
   const flatHeaders = {};
   Object.keys(headers).forEach(key => {
     const header = headers[key];
     flatHeaders[header.key] = header.value;
   });
   options.headers = flatHeaders;
+
   const runningTimeout = function () {
     let timer = null;
     const promise = new Promise(function (resolve, reject) {
@@ -19572,6 +22176,7 @@ function _fetchData(connection, body, processFunc) {
           if (timer == null) {
             return;
           }
+
           timer = null;
           reject(logger.makeError("timeout", _logger.Logger.errors.TIMEOUT, {
             requestBody: bodyify(options.body, flatHeaders["content-type"]),
@@ -19582,45 +22187,55 @@ function _fetchData(connection, body, processFunc) {
         }, timeout);
       }
     });
+
     const cancel = function () {
       if (timer == null) {
         return;
       }
+
       clearTimeout(timer);
       timer = null;
     };
+
     return {
       promise,
       cancel
     };
   }();
+
   const runningFetch = function () {
     return __awaiter(this, void 0, void 0, function* () {
       for (let attempt = 0; attempt < attemptLimit; attempt++) {
         let response = null;
+
         try {
-          response = yield (0, _geturl.getUrl)(url, options);
-          // Exponential back-off throttling
+          response = yield (0, _geturl.getUrl)(url, options); // Exponential back-off throttling
+
           if (response.statusCode === 429 && attempt < attemptLimit) {
             let tryAgain = true;
+
             if (throttleCallback) {
               tryAgain = yield throttleCallback(attempt, url);
             }
+
             if (tryAgain) {
               let stall = 0;
               const retryAfter = response.headers["retry-after"];
+
               if (typeof retryAfter === "string" && retryAfter.match(/^[1-9][0-9]*$/)) {
                 stall = parseInt(retryAfter) * 1000;
               } else {
                 stall = throttleSlotInterval * parseInt(String(Math.random() * Math.pow(2, attempt)));
-              }
-              //console.log("Stalling 429");
+              } //console.log("Stalling 429");
+
+
               yield staller(stall);
               continue;
             }
           }
         } catch (error) {
           response = error.response;
+
           if (response == null) {
             runningTimeout.cancel();
             logger.throwError("missing response", _logger.Logger.errors.SERVER_ERROR, {
@@ -19631,7 +22246,9 @@ function _fetchData(connection, body, processFunc) {
             });
           }
         }
+
         let body = response.body;
+
         if (allow304 && response.statusCode === 304) {
           body = null;
         } else if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -19645,6 +22262,7 @@ function _fetchData(connection, body, processFunc) {
             url: url
           });
         }
+
         if (processFunc) {
           try {
             const result = yield processFunc(body, response);
@@ -19654,16 +22272,19 @@ function _fetchData(connection, body, processFunc) {
             // Allow the processFunc to trigger a throttle
             if (error.throttleRetry && attempt < attemptLimit) {
               let tryAgain = true;
+
               if (throttleCallback) {
                 tryAgain = yield throttleCallback(attempt, url);
               }
+
               if (tryAgain) {
-                const timeout = throttleSlotInterval * parseInt(String(Math.random() * Math.pow(2, attempt)));
-                //console.log("Stalling callback");
+                const timeout = throttleSlotInterval * parseInt(String(Math.random() * Math.pow(2, attempt))); //console.log("Stalling callback");
+
                 yield staller(timeout);
                 continue;
               }
             }
+
             runningTimeout.cancel();
             logger.throwError("processing response error", _logger.Logger.errors.SERVER_ERROR, {
               body: bodyify(body, response.headers ? response.headers["content-type"] : null),
@@ -19674,11 +22295,13 @@ function _fetchData(connection, body, processFunc) {
             });
           }
         }
-        runningTimeout.cancel();
-        // If we had a processFunc, it either returned a T or threw above.
+
+        runningTimeout.cancel(); // If we had a processFunc, it either returned a T or threw above.
         // The "body" is now a Uint8Array.
+
         return body;
       }
+
       return logger.throwError("failed response", _logger.Logger.errors.SERVER_ERROR, {
         requestBody: bodyify(options.body, flatHeaders["content-type"]),
         requestMethod: options.method,
@@ -19686,11 +22309,14 @@ function _fetchData(connection, body, processFunc) {
       });
     });
   }();
+
   return Promise.race([runningTimeout.promise, runningFetch]);
 }
+
 function fetchJson(connection, json, processFunc) {
   let processJsonFunc = (value, response) => {
     let result = null;
+
     if (value != null) {
       try {
         result = JSON.parse((0, _strings.toUtf8String)(value));
@@ -19701,23 +22327,29 @@ function fetchJson(connection, json, processFunc) {
         });
       }
     }
+
     if (processFunc) {
       result = processFunc(result, response);
     }
+
     return result;
-  };
-  // If we have json to send, we must
+  }; // If we have json to send, we must
   // - add content-type of application/json (unless already overridden)
   // - convert the json to bytes
+
+
   let body = null;
+
   if (json != null) {
-    body = (0, _strings.toUtf8Bytes)(json);
-    // Create a connection with the content-type set for JSON
+    body = (0, _strings.toUtf8Bytes)(json); // Create a connection with the content-type set for JSON
+
     const updated = typeof connection === "string" ? {
       url: connection
     } : (0, _properties.shallowCopy)(connection);
+
     if (updated.headers) {
       const hasContentType = Object.keys(updated.headers).filter(k => k.toLowerCase() === "content-type").length !== 0;
+
       if (!hasContentType) {
         updated.headers = (0, _properties.shallowCopy)(updated.headers);
         updated.headers["content-type"] = "application/json";
@@ -19727,38 +22359,50 @@ function fetchJson(connection, json, processFunc) {
         "content-type": "application/json"
       };
     }
+
     connection = updated;
   }
+
   return _fetchData(connection, body, processJsonFunc);
 }
+
 function poll(func, options) {
   if (!options) {
     options = {};
   }
+
   options = (0, _properties.shallowCopy)(options);
+
   if (options.floor == null) {
     options.floor = 0;
   }
+
   if (options.ceiling == null) {
     options.ceiling = 10000;
   }
+
   if (options.interval == null) {
     options.interval = 250;
   }
+
   return new Promise(function (resolve, reject) {
     let timer = null;
-    let done = false;
-    // Returns true if cancel was successful. Unsuccessful cancel means we're already done.
+    let done = false; // Returns true if cancel was successful. Unsuccessful cancel means we're already done.
+
     const cancel = () => {
       if (done) {
         return false;
       }
+
       done = true;
+
       if (timer) {
         clearTimeout(timer);
       }
+
       return true;
     };
+
     if (options.timeout) {
       timer = setTimeout(() => {
         if (cancel()) {
@@ -19766,8 +22410,10 @@ function poll(func, options) {
         }
       }, options.timeout);
     }
+
     const retryLimit = options.retryLimit;
     let attempt = 0;
+
     function check() {
       return func().then(function (result) {
         // If we have a result, or are allowed null then we're done
@@ -19778,25 +22424,31 @@ function poll(func, options) {
         } else if (options.oncePoll) {
           options.oncePoll.once("poll", check);
         } else if (options.onceBlock) {
-          options.onceBlock.once("block", check);
-          // Otherwise, exponential back-off (up to 10s) our next request
+          options.onceBlock.once("block", check); // Otherwise, exponential back-off (up to 10s) our next request
         } else if (!done) {
           attempt++;
+
           if (attempt > retryLimit) {
             if (cancel()) {
               reject(new Error("retry limit reached"));
             }
+
             return;
           }
+
           let timeout = options.interval * parseInt(String(Math.random() * Math.pow(2, attempt)));
+
           if (timeout < options.floor) {
             timeout = options.floor;
           }
+
           if (timeout > options.ceiling) {
             timeout = options.ceiling;
           }
+
           setTimeout(check, timeout);
         }
+
         return null;
       }, function (error) {
         if (cancel()) {
@@ -19804,6 +22456,7 @@ function poll(func, options) {
         }
       });
     }
+
     check();
   });
 }
@@ -20010,20 +22663,31 @@ exports.Formatter = void 0;
 exports.isCommunityResourcable = isCommunityResourcable;
 exports.isCommunityResource = isCommunityResource;
 exports.showThrottleMessage = showThrottleMessage;
+
 var _address = require("@ethersproject/address");
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _constants = require("@ethersproject/constants");
+
 var _properties = require("@ethersproject/properties");
+
 var _transactions = require("@ethersproject/transactions");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 const logger = new _logger.Logger(_version.version);
+
 class Formatter {
   constructor() {
     logger.checkNew(new.target, Formatter);
     this.formats = this.getDefaultFormats();
   }
+
   getDefaultFormats() {
     const formats = {};
     const address = this.address.bind(this);
@@ -20034,9 +22698,11 @@ class Formatter {
     const hex = this.hex.bind(this);
     const number = this.number.bind(this);
     const type = this.type.bind(this);
+
     const strictData = v => {
       return this.data(v, true);
     };
+
     formats.transaction = {
       hash: hash,
       type: type,
@@ -20140,205 +22806,266 @@ class Formatter {
     };
     return formats;
   }
+
   accessList(accessList) {
     return (0, _transactions.accessListify)(accessList || []);
-  }
-  // Requires a BigNumberish that is within the IEEE754 safe integer range; returns a number
+  } // Requires a BigNumberish that is within the IEEE754 safe integer range; returns a number
   // Strict! Used on input.
+
+
   number(number) {
     if (number === "0x") {
       return 0;
     }
+
     return _bignumber.BigNumber.from(number).toNumber();
   }
+
   type(number) {
     if (number === "0x" || number == null) {
       return 0;
     }
+
     return _bignumber.BigNumber.from(number).toNumber();
-  }
-  // Strict! Used on input.
+  } // Strict! Used on input.
+
+
   bigNumber(value) {
     return _bignumber.BigNumber.from(value);
-  }
-  // Requires a boolean, "true" or  "false"; returns a boolean
+  } // Requires a boolean, "true" or  "false"; returns a boolean
+
+
   boolean(value) {
     if (typeof value === "boolean") {
       return value;
     }
+
     if (typeof value === "string") {
       value = value.toLowerCase();
+
       if (value === "true") {
         return true;
       }
+
       if (value === "false") {
         return false;
       }
     }
+
     throw new Error("invalid boolean - " + value);
   }
+
   hex(value, strict) {
     if (typeof value === "string") {
       if (!strict && value.substring(0, 2) !== "0x") {
         value = "0x" + value;
       }
+
       if ((0, _bytes.isHexString)(value)) {
         return value.toLowerCase();
       }
     }
+
     return logger.throwArgumentError("invalid hash", "value", value);
   }
+
   data(value, strict) {
     const result = this.hex(value, strict);
+
     if (result.length % 2 !== 0) {
       throw new Error("invalid data; odd-length - " + value);
     }
+
     return result;
-  }
-  // Requires an address
+  } // Requires an address
   // Strict! Used on input.
+
+
   address(value) {
     return (0, _address.getAddress)(value);
   }
+
   callAddress(value) {
     if (!(0, _bytes.isHexString)(value, 32)) {
       return null;
     }
+
     const address = (0, _address.getAddress)((0, _bytes.hexDataSlice)(value, 12));
     return address === _constants.AddressZero ? null : address;
   }
+
   contractAddress(value) {
     return (0, _address.getContractAddress)(value);
-  }
-  // Strict! Used on input.
+  } // Strict! Used on input.
+
+
   blockTag(blockTag) {
     if (blockTag == null) {
       return "latest";
     }
+
     if (blockTag === "earliest") {
       return "0x0";
     }
+
     if (blockTag === "latest" || blockTag === "pending") {
       return blockTag;
     }
+
     if (typeof blockTag === "number" || (0, _bytes.isHexString)(blockTag)) {
       return (0, _bytes.hexValue)(blockTag);
     }
+
     throw new Error("invalid blockTag");
-  }
-  // Requires a hash, optionally requires 0x prefix; returns prefixed lowercase hash.
+  } // Requires a hash, optionally requires 0x prefix; returns prefixed lowercase hash.
+
+
   hash(value, strict) {
     const result = this.hex(value, strict);
+
     if ((0, _bytes.hexDataLength)(result) !== 32) {
       return logger.throwArgumentError("invalid hash", "value", value);
     }
+
     return result;
-  }
-  // Returns the difficulty as a number, or if too large (i.e. PoA network) null
+  } // Returns the difficulty as a number, or if too large (i.e. PoA network) null
+
+
   difficulty(value) {
     if (value == null) {
       return null;
     }
+
     const v = _bignumber.BigNumber.from(value);
+
     try {
       return v.toNumber();
     } catch (error) {}
+
     return null;
   }
+
   uint256(value) {
     if (!(0, _bytes.isHexString)(value)) {
       throw new Error("invalid uint256");
     }
+
     return (0, _bytes.hexZeroPad)(value, 32);
   }
+
   _block(value, format) {
     if (value.author != null && value.miner == null) {
       value.miner = value.author;
-    }
-    // The difficulty may need to come from _difficulty in recursed blocks
+    } // The difficulty may need to come from _difficulty in recursed blocks
+
+
     const difficulty = value._difficulty != null ? value._difficulty : value.difficulty;
     const result = Formatter.check(format, value);
     result._difficulty = difficulty == null ? null : _bignumber.BigNumber.from(difficulty);
     return result;
   }
+
   block(value) {
     return this._block(value, this.formats.block);
   }
+
   blockWithTransactions(value) {
     return this._block(value, this.formats.blockWithTransactions);
-  }
-  // Strict! Used on input.
+  } // Strict! Used on input.
+
+
   transactionRequest(value) {
     return Formatter.check(this.formats.transactionRequest, value);
   }
+
   transactionResponse(transaction) {
     // Rename gas to gasLimit
     if (transaction.gas != null && transaction.gasLimit == null) {
       transaction.gasLimit = transaction.gas;
-    }
-    // Some clients (TestRPC) do strange things like return 0x0 for the
+    } // Some clients (TestRPC) do strange things like return 0x0 for the
     // 0 address; correct this to be a real address
+
+
     if (transaction.to && _bignumber.BigNumber.from(transaction.to).isZero()) {
       transaction.to = "0x0000000000000000000000000000000000000000";
-    }
-    // Rename input to data
+    } // Rename input to data
+
+
     if (transaction.input != null && transaction.data == null) {
       transaction.data = transaction.input;
-    }
-    // If to and creates are empty, populate the creates from the transaction
+    } // If to and creates are empty, populate the creates from the transaction
+
+
     if (transaction.to == null && transaction.creates == null) {
       transaction.creates = this.contractAddress(transaction);
     }
+
     if ((transaction.type === 1 || transaction.type === 2) && transaction.accessList == null) {
       transaction.accessList = [];
     }
+
     const result = Formatter.check(this.formats.transaction, transaction);
+
     if (transaction.chainId != null) {
       let chainId = transaction.chainId;
+
       if ((0, _bytes.isHexString)(chainId)) {
         chainId = _bignumber.BigNumber.from(chainId).toNumber();
       }
+
       result.chainId = chainId;
     } else {
-      let chainId = transaction.networkId;
-      // geth-etc returns chainId
+      let chainId = transaction.networkId; // geth-etc returns chainId
+
       if (chainId == null && result.v == null) {
         chainId = transaction.chainId;
       }
+
       if ((0, _bytes.isHexString)(chainId)) {
         chainId = _bignumber.BigNumber.from(chainId).toNumber();
       }
+
       if (typeof chainId !== "number" && result.v != null) {
         chainId = (result.v - 35) / 2;
+
         if (chainId < 0) {
           chainId = 0;
         }
+
         chainId = parseInt(chainId);
       }
+
       if (typeof chainId !== "number") {
         chainId = 0;
       }
+
       result.chainId = chainId;
-    }
-    // 0x0000... should actually be null
+    } // 0x0000... should actually be null
+
+
     if (result.blockHash && result.blockHash.replace(/0/g, "") === "x") {
       result.blockHash = null;
     }
+
     return result;
   }
+
   transaction(value) {
     return (0, _transactions.parse)(value);
   }
+
   receiptLog(value) {
     return Formatter.check(this.formats.receiptLog, value);
   }
+
   receipt(value) {
-    const result = Formatter.check(this.formats.receipt, value);
-    // RSK incorrectly implemented EIP-658, so we munge things a bit here for it
+    const result = Formatter.check(this.formats.receipt, value); // RSK incorrectly implemented EIP-658, so we munge things a bit here for it
+
     if (result.root != null) {
       if (result.root.length <= 4) {
         // Could be 0x00, 0x0, 0x01 or 0x1
         const value = _bignumber.BigNumber.from(result.root).toNumber();
+
         if (value === 0 || value === 1) {
           // Make sure if both are specified, they match
           if (result.status != null && result.status !== value) {
@@ -20347,6 +23074,7 @@ class Formatter {
               status: result.status
             });
           }
+
           result.status = value;
           delete result.root;
         } else {
@@ -20357,30 +23085,39 @@ class Formatter {
         logger.throwArgumentError("invalid root hash", "value.root", result.root);
       }
     }
+
     if (result.status != null) {
       result.byzantium = true;
     }
+
     return result;
   }
+
   topics(value) {
     if (Array.isArray(value)) {
       return value.map(v => this.topics(v));
     } else if (value != null) {
       return this.hash(value, true);
     }
+
     return null;
   }
+
   filter(value) {
     return Formatter.check(this.formats.filter, value);
   }
+
   filterLog(value) {
     return Formatter.check(this.formats.filterLog, value);
   }
+
   static check(format, object) {
     const result = {};
+
     for (const key in format) {
       try {
         const value = format[key](object[key]);
+
         if (value !== undefined) {
           result[key] = value;
         }
@@ -20390,32 +23127,39 @@ class Formatter {
         throw error;
       }
     }
+
     return result;
-  }
-  // if value is null-ish, nullValue is returned
+  } // if value is null-ish, nullValue is returned
+
+
   static allowNull(format, nullValue) {
     return function (value) {
       if (value == null) {
         return nullValue;
       }
+
       return format(value);
     };
-  }
-  // If value is false-ish, replaceValue is returned
+  } // If value is false-ish, replaceValue is returned
+
+
   static allowFalsish(format, replaceValue) {
     return function (value) {
       if (!value) {
         return replaceValue;
       }
+
       return format(value);
     };
-  }
-  // Requires an Array satisfying check
+  } // Requires an Array satisfying check
+
+
   static arrayOf(format) {
     return function (array) {
       if (!Array.isArray(array)) {
         throw new Error("not an array");
       }
+
       const result = [];
       array.forEach(function (value) {
         result.push(format(value));
@@ -20423,20 +23167,27 @@ class Formatter {
       return result;
     };
   }
+
 }
+
 exports.Formatter = Formatter;
+
 function isCommunityResourcable(value) {
   return value && typeof value.isCommunityResource === "function";
 }
+
 function isCommunityResource(value) {
   return isCommunityResourcable(value) && value.isCommunityResource();
-}
-// Show the throttle message only once
+} // Show the throttle message only once
+
+
 let throttleMessage = false;
+
 function showThrottleMessage() {
   if (throttleMessage) {
     return;
   }
+
   throttleMessage = true;
   console.log("========= NOTICE =========");
   console.log("Request-Rate Exceeded  (this message will not be repeated)");
@@ -20458,28 +23209,46 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.Resolver = exports.Event = exports.BaseProvider = void 0;
+
 var _abstractProvider = require("@ethersproject/abstract-provider");
+
 var _basex = require("@ethersproject/basex");
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _constants = require("@ethersproject/constants");
+
 var _hash = require("@ethersproject/hash");
+
 var _networks = require("@ethersproject/networks");
+
 var _properties = require("@ethersproject/properties");
+
 var _sha = require("@ethersproject/sha2");
+
 var _strings = require("@ethersproject/strings");
+
 var _web = require("@ethersproject/web");
+
 var _bech = _interopRequireDefault(require("bech32"));
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var _formatter = require("./formatter");
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -20488,6 +23257,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -20495,38 +23265,47 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 const logger = new _logger.Logger(_version.version);
+
 //////////////////////////////
 // Event Serializeing
 function checkTopic(topic) {
   if (topic == null) {
     return "null";
   }
+
   if ((0, _bytes.hexDataLength)(topic) !== 32) {
     logger.throwArgumentError("invalid topic", "topic", topic);
   }
+
   return topic.toLowerCase();
 }
+
 function serializeTopics(topics) {
   // Remove trailing null AND-topics; they are redundant
   topics = topics.slice();
+
   while (topics.length > 0 && topics[topics.length - 1] == null) {
     topics.pop();
   }
+
   return topics.map(topic => {
     if (Array.isArray(topic)) {
       // Only track unique OR-topics
       const unique = {};
       topic.forEach(topic => {
         unique[checkTopic(topic)] = true;
-      });
-      // The order of OR-topics does not matter
+      }); // The order of OR-topics does not matter
+
       const sorted = Object.keys(unique);
       sorted.sort();
       return sorted.join("|");
@@ -20535,26 +23314,32 @@ function serializeTopics(topics) {
     }
   }).join("&");
 }
+
 function deserializeTopics(data) {
   if (data === "") {
     return [];
   }
+
   return data.split(/&/g).map(topic => {
     if (topic === "") {
       return [];
     }
+
     const comps = topic.split("|").map(topic => {
       return topic === "null" ? null : topic;
     });
     return comps.length === 1 ? comps[0] : comps;
   });
 }
+
 function getEventTag(eventName) {
   if (typeof eventName === "string") {
     eventName = eventName.toLowerCase();
+
     if ((0, _bytes.hexDataLength)(eventName) === 32) {
       return "tx:" + eventName;
     }
+
     if (eventName.indexOf(":") === -1) {
       return eventName;
     }
@@ -20566,20 +23351,23 @@ function getEventTag(eventName) {
   } else if (eventName && typeof eventName === "object") {
     return "filter:" + (eventName.address || "*") + ":" + serializeTopics(eventName.topics || []);
   }
+
   throw new Error("invalid event - " + eventName);
-}
-//////////////////////////////
+} //////////////////////////////
 // Helper Object
+
+
 function getTime() {
   return new Date().getTime();
 }
+
 function stall(duration) {
   return new Promise(resolve => {
     setTimeout(resolve, duration);
   });
-}
-//////////////////////////////
+} //////////////////////////////
 // Provider Object
+
 /**
  *  EventType
  *   - "block"
@@ -20592,55 +23380,74 @@ function stall(duration) {
  *   - topics array
  *   - transaction hash
  */
+
+
 const PollableEvents = ["block", "network", "pending", "poll"];
+
 class Event {
   constructor(tag, listener, once) {
     (0, _properties.defineReadOnly)(this, "tag", tag);
     (0, _properties.defineReadOnly)(this, "listener", listener);
     (0, _properties.defineReadOnly)(this, "once", once);
   }
+
   get event() {
     switch (this.type) {
       case "tx":
         return this.hash;
+
       case "filter":
         return this.filter;
     }
+
     return this.tag;
   }
+
   get type() {
     return this.tag.split(":")[0];
   }
+
   get hash() {
     const comps = this.tag.split(":");
+
     if (comps[0] !== "tx") {
       return null;
     }
+
     return comps[1];
   }
+
   get filter() {
     const comps = this.tag.split(":");
+
     if (comps[0] !== "filter") {
       return null;
     }
+
     const address = comps[1];
     const topics = deserializeTopics(comps[2]);
     const filter = {};
+
     if (topics.length > 0) {
       filter.topics = topics;
     }
+
     if (address && address !== "*") {
       filter.address = address;
     }
+
     return filter;
   }
+
   pollable() {
     return this.tag.indexOf(":") >= 0 || PollableEvents.indexOf(this.tag) >= 0;
   }
+
 }
+
 exports.Event = Event;
-;
-// https://github.com/satoshilabs/slips/blob/master/slip-0044.md
+; // https://github.com/satoshilabs/slips/blob/master/slip-0044.md
+
 const coinInfos = {
   "0": {
     symbol: "btc",
@@ -20672,28 +23479,38 @@ const coinInfos = {
     ilk: "eth"
   }
 };
+
 function bytes32ify(value) {
   return (0, _bytes.hexZeroPad)(_bignumber.BigNumber.from(value).toHexString(), 32);
-}
-// Compute the Base58Check encoded data (checksum is first 4 bytes of sha256d)
+} // Compute the Base58Check encoded data (checksum is first 4 bytes of sha256d)
+
+
 function base58Encode(data) {
   return _basex.Base58.encode((0, _bytes.concat)([data, (0, _bytes.hexDataSlice)((0, _sha.sha256)((0, _sha.sha256)(data)), 0, 4)]));
 }
+
 const matchers = [new RegExp("^(https):/\/(.*)$", "i"), new RegExp("^(data):(.*)$", "i"), new RegExp("^(ipfs):/\/(.*)$", "i"), new RegExp("^eip155:[0-9]+/(erc[0-9]+):(.*)$", "i")];
+
 function _parseString(result) {
   try {
     return (0, _strings.toUtf8String)(_parseBytes(result));
   } catch (error) {}
+
   return null;
 }
+
 function _parseBytes(result) {
   if (result === "0x") {
     return null;
   }
+
   const offset = _bignumber.BigNumber.from((0, _bytes.hexDataSlice)(result, 0, 32)).toNumber();
+
   const length = _bignumber.BigNumber.from((0, _bytes.hexDataSlice)(result, offset, offset + 32)).toNumber();
+
   return (0, _bytes.hexDataSlice)(result, offset + 32, offset + 32 + length);
 }
+
 class Resolver {
   // The resolvedAddress is only for creating a ReverseLookup resolver
   constructor(provider, address, name, resolvedAddress) {
@@ -20702,6 +23519,7 @@ class Resolver {
     (0, _properties.defineReadOnly)(this, "address", provider.formatter.address(address));
     (0, _properties.defineReadOnly)(this, "_resolvedAddress", resolvedAddress);
   }
+
   _fetchBytes(selector, parameters) {
     return __awaiter(this, void 0, void 0, function* () {
       // e.g. keccak256("addr(bytes32,uint256)")
@@ -20709,52 +23527,65 @@ class Resolver {
         to: this.address,
         data: (0, _bytes.hexConcat)([selector, (0, _hash.namehash)(this.name), parameters || "0x"])
       };
+
       try {
         return _parseBytes(yield this.provider.call(tx));
       } catch (error) {
         if (error.code === _logger.Logger.errors.CALL_EXCEPTION) {
           return null;
         }
+
         return null;
       }
     });
   }
+
   _getAddress(coinType, hexBytes) {
     const coinInfo = coinInfos[String(coinType)];
+
     if (coinInfo == null) {
       logger.throwError(`unsupported coin type: ${coinType}`, _logger.Logger.errors.UNSUPPORTED_OPERATION, {
         operation: `getAddress(${coinType})`
       });
     }
+
     if (coinInfo.ilk === "eth") {
       return this.provider.formatter.address(hexBytes);
     }
-    const bytes = (0, _bytes.arrayify)(hexBytes);
-    // P2PKH: OP_DUP OP_HASH160 <pubKeyHash> OP_EQUALVERIFY OP_CHECKSIG
+
+    const bytes = (0, _bytes.arrayify)(hexBytes); // P2PKH: OP_DUP OP_HASH160 <pubKeyHash> OP_EQUALVERIFY OP_CHECKSIG
+
     if (coinInfo.p2pkh != null) {
       const p2pkh = hexBytes.match(/^0x76a9([0-9a-f][0-9a-f])([0-9a-f]*)88ac$/);
+
       if (p2pkh) {
         const length = parseInt(p2pkh[1], 16);
+
         if (p2pkh[2].length === length * 2 && length >= 1 && length <= 75) {
           return base58Encode((0, _bytes.concat)([[coinInfo.p2pkh], "0x" + p2pkh[2]]));
         }
       }
-    }
-    // P2SH: OP_HASH160 <scriptHash> OP_EQUAL
+    } // P2SH: OP_HASH160 <scriptHash> OP_EQUAL
+
+
     if (coinInfo.p2sh != null) {
       const p2sh = hexBytes.match(/^0xa9([0-9a-f][0-9a-f])([0-9a-f]*)87$/);
+
       if (p2sh) {
         const length = parseInt(p2sh[1], 16);
+
         if (p2sh[2].length === length * 2 && length >= 1 && length <= 75) {
           return base58Encode((0, _bytes.concat)([[coinInfo.p2sh], "0x" + p2sh[2]]));
         }
       }
-    }
-    // Bech32
+    } // Bech32
+
+
     if (coinInfo.prefix != null) {
-      const length = bytes[1];
-      // https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki#witness-program
+      const length = bytes[1]; // https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki#witness-program
+
       let version = bytes[0];
+
       if (version === 0x00) {
         if (length !== 20 && length !== 32) {
           version = -1;
@@ -20762,20 +23593,25 @@ class Resolver {
       } else {
         version = -1;
       }
+
       if (version >= 0 && bytes.length === 2 + length && length >= 1 && length <= 75) {
         const words = _bech.default.toWords(bytes.slice(2));
+
         words.unshift(version);
         return _bech.default.encode(coinInfo.prefix, words);
       }
     }
+
     return null;
   }
+
   getAddress(coinType) {
     return __awaiter(this, void 0, void 0, function* () {
       if (coinType == null) {
         coinType = 60;
-      }
-      // If Ethereum, use the standard `addr(bytes32)`
+      } // If Ethereum, use the standard `addr(bytes32)`
+
+
       if (coinType === 60) {
         try {
           // keccak256("addr(bytes32)")
@@ -20783,27 +23619,32 @@ class Resolver {
             to: this.address,
             data: "0x3b3b57de" + (0, _hash.namehash)(this.name).substring(2)
           };
-          const hexBytes = yield this.provider.call(transaction);
-          // No address
+          const hexBytes = yield this.provider.call(transaction); // No address
+
           if (hexBytes === "0x" || hexBytes === _constants.HashZero) {
             return null;
           }
+
           return this.provider.formatter.callAddress(hexBytes);
         } catch (error) {
           if (error.code === _logger.Logger.errors.CALL_EXCEPTION) {
             return null;
           }
+
           throw error;
         }
-      }
-      // keccak256("addr(bytes32,uint256")
-      const hexBytes = yield this._fetchBytes("0xf1cb7e06", bytes32ify(coinType));
-      // No address
+      } // keccak256("addr(bytes32,uint256")
+
+
+      const hexBytes = yield this._fetchBytes("0xf1cb7e06", bytes32ify(coinType)); // No address
+
       if (hexBytes == null || hexBytes === "0x") {
         return null;
-      }
-      // Compute the address
+      } // Compute the address
+
+
       const address = this._getAddress(coinType, hexBytes);
+
       if (address == null) {
         logger.throwError(`invalid or unsupported coin data`, _logger.Logger.errors.UNSUPPORTED_OPERATION, {
           operation: `getAddress(${coinType})`,
@@ -20811,22 +23652,29 @@ class Resolver {
           data: hexBytes
         });
       }
+
       return address;
     });
   }
+
   getAvatar() {
     return __awaiter(this, void 0, void 0, function* () {
       const linkage = [];
+
       try {
         const avatar = yield this.getText("avatar");
+
         if (avatar == null) {
           return null;
         }
+
         for (let i = 0; i < matchers.length; i++) {
           const match = avatar.match(matchers[i]);
+
           if (match == null) {
             continue;
           }
+
           switch (match[1]) {
             case "https":
               linkage.push({
@@ -20837,6 +23685,7 @@ class Resolver {
                 linkage,
                 url: avatar
               };
+
             case "data":
               linkage.push({
                 type: "data",
@@ -20846,6 +23695,7 @@ class Resolver {
                 linkage,
                 url: avatar
               };
+
             case "ipfs":
               linkage.push({
                 type: "ipfs",
@@ -20855,6 +23705,7 @@ class Resolver {
                 linkage,
                 url: `https:/\/gateway.ipfs.io/ipfs/${avatar.substring(7)}`
               };
+
             case "erc721":
             case "erc1155":
               {
@@ -20863,25 +23714,29 @@ class Resolver {
                 linkage.push({
                   type: match[1],
                   content: avatar
-                });
-                // The owner of this name
+                }); // The owner of this name
+
                 const owner = this._resolvedAddress || (yield this.getAddress());
                 const comps = (match[2] || "").split("/");
+
                 if (comps.length !== 2) {
                   return null;
                 }
+
                 const addr = yield this.provider.formatter.address(comps[0]);
-                const tokenId = (0, _bytes.hexZeroPad)(_bignumber.BigNumber.from(comps[1]).toHexString(), 32);
-                // Check that this account owns the token
+                const tokenId = (0, _bytes.hexZeroPad)(_bignumber.BigNumber.from(comps[1]).toHexString(), 32); // Check that this account owns the token
+
                 if (match[1] === "erc721") {
                   // ownerOf(uint256 tokenId)
                   const tokenOwner = this.provider.formatter.callAddress(yield this.provider.call({
                     to: addr,
                     data: (0, _bytes.hexConcat)(["0x6352211e", tokenId])
                   }));
+
                   if (owner !== tokenOwner) {
                     return null;
                   }
+
                   linkage.push({
                     type: "owner",
                     content: tokenOwner
@@ -20892,37 +23747,45 @@ class Resolver {
                     to: addr,
                     data: (0, _bytes.hexConcat)(["0x00fdd58e", (0, _bytes.hexZeroPad)(owner, 32), tokenId])
                   }));
+
                   if (balance.isZero()) {
                     return null;
                   }
+
                   linkage.push({
                     type: "balance",
                     content: balance.toString()
                   });
-                }
-                // Call the token contract for the metadata URL
+                } // Call the token contract for the metadata URL
+
+
                 const tx = {
                   to: this.provider.formatter.address(comps[0]),
                   data: (0, _bytes.hexConcat)([selector, tokenId])
                 };
+
                 let metadataUrl = _parseString(yield this.provider.call(tx));
+
                 if (metadataUrl == null) {
                   return null;
                 }
+
                 linkage.push({
                   type: "metadata-url",
                   content: metadataUrl
-                });
-                // ERC-1155 allows a generic {id} in the URL
+                }); // ERC-1155 allows a generic {id} in the URL
+
                 if (match[1] === "erc1155") {
                   metadataUrl = metadataUrl.replace("{id}", tokenId.substring(2));
-                }
-                // Get the token metadata
-                const metadata = yield (0, _web.fetchJson)(metadataUrl);
-                // Pull the image URL out
+                } // Get the token metadata
+
+
+                const metadata = yield (0, _web.fetchJson)(metadataUrl); // Pull the image URL out
+
                 if (!metadata || typeof metadata.image !== "string" || !metadata.image.match(/^https:\/\//i)) {
                   return null;
                 }
+
                 linkage.push({
                   type: "metadata",
                   content: JSON.stringify(metadata)
@@ -20939,60 +23802,75 @@ class Resolver {
           }
         }
       } catch (error) {}
+
       return null;
     });
   }
+
   getContentHash() {
     return __awaiter(this, void 0, void 0, function* () {
       // keccak256("contenthash()")
-      const hexBytes = yield this._fetchBytes("0xbc1c58d1");
-      // No contenthash
+      const hexBytes = yield this._fetchBytes("0xbc1c58d1"); // No contenthash
+
       if (hexBytes == null || hexBytes === "0x") {
         return null;
-      }
-      // IPFS (CID: 1, Type: DAG-PB)
+      } // IPFS (CID: 1, Type: DAG-PB)
+
+
       const ipfs = hexBytes.match(/^0xe3010170(([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])([0-9a-f]*))$/);
+
       if (ipfs) {
         const length = parseInt(ipfs[3], 16);
+
         if (ipfs[4].length === length * 2) {
           return "ipfs:/\/" + _basex.Base58.encode("0x" + ipfs[1]);
         }
-      }
-      // Swarm (CID: 1, Type: swarm-manifest; hash/length hard-coded to keccak256/32)
+      } // Swarm (CID: 1, Type: swarm-manifest; hash/length hard-coded to keccak256/32)
+
+
       const swarm = hexBytes.match(/^0xe40101fa011b20([0-9a-f]*)$/);
+
       if (swarm) {
         if (swarm[1].length === 32 * 2) {
           return "bzz:/\/" + swarm[1];
         }
       }
+
       return logger.throwError(`invalid or unsupported content hash data`, _logger.Logger.errors.UNSUPPORTED_OPERATION, {
         operation: "getContentHash()",
         data: hexBytes
       });
     });
   }
+
   getText(key) {
     return __awaiter(this, void 0, void 0, function* () {
       // The key encoded as parameter to fetchBytes
-      let keyBytes = (0, _strings.toUtf8Bytes)(key);
-      // The nodehash consumes the first slot, so the string pointer targets
+      let keyBytes = (0, _strings.toUtf8Bytes)(key); // The nodehash consumes the first slot, so the string pointer targets
       // offset 64, with the length at offset 64 and data starting at offset 96
-      keyBytes = (0, _bytes.concat)([bytes32ify(64), bytes32ify(keyBytes.length), keyBytes]);
-      // Pad to word-size (32 bytes)
+
+      keyBytes = (0, _bytes.concat)([bytes32ify(64), bytes32ify(keyBytes.length), keyBytes]); // Pad to word-size (32 bytes)
+
       if (keyBytes.length % 32 !== 0) {
         keyBytes = (0, _bytes.concat)([keyBytes, (0, _bytes.hexZeroPad)("0x", 32 - key.length % 32)]);
       }
+
       const hexBytes = yield this._fetchBytes("0x59d1d43c", (0, _bytes.hexlify)(keyBytes));
+
       if (hexBytes == null || hexBytes === "0x") {
         return null;
       }
+
       return (0, _strings.toUtf8String)(hexBytes);
     });
   }
+
 }
+
 exports.Resolver = Resolver;
 let defaultFormatter = null;
 let nextPollId = 1;
+
 class BaseProvider extends _abstractProvider.Provider {
   /**
    *  ready
@@ -21005,28 +23883,31 @@ class BaseProvider extends _abstractProvider.Provider {
    */
   constructor(network) {
     logger.checkNew(new.target, _abstractProvider.Provider);
-    super();
-    // Events being listened to
+    super(); // Events being listened to
+
     this._events = [];
     this._emitted = {
       block: -2
     };
-    this.formatter = new.target.getFormatter();
-    // If network is any, this Provider allows the underlying
+    this.formatter = new.target.getFormatter(); // If network is any, this Provider allows the underlying
     // network to change dynamically, and we auto-detect the
     // current network
+
     (0, _properties.defineReadOnly)(this, "anyNetwork", network === "any");
+
     if (this.anyNetwork) {
       network = this.detectNetwork();
     }
+
     if (network instanceof Promise) {
-      this._networkPromise = network;
-      // Squash any "unhandled promise" errors; that do not need to be handled
-      network.catch(error => {});
-      // Trigger initial network setting (async)
+      this._networkPromise = network; // Squash any "unhandled promise" errors; that do not need to be handled
+
+      network.catch(error => {}); // Trigger initial network setting (async)
+
       this._ready().catch(error => {});
     } else {
       const knownNetwork = (0, _properties.getStatic)(new.target, "getNetwork")(network);
+
       if (knownNetwork) {
         (0, _properties.defineReadOnly)(this, "_network", knownNetwork);
         this.emit("network", knownNetwork, null);
@@ -21034,45 +23915,54 @@ class BaseProvider extends _abstractProvider.Provider {
         logger.throwArgumentError("invalid network", "network", network);
       }
     }
+
     this._maxInternalBlockNumber = -1024;
     this._lastBlockNumber = -2;
     this._pollingInterval = 4000;
     this._fastQueryDate = 0;
   }
+
   _ready() {
     return __awaiter(this, void 0, void 0, function* () {
       if (this._network == null) {
         let network = null;
+
         if (this._networkPromise) {
           try {
             network = yield this._networkPromise;
           } catch (error) {}
-        }
-        // Try the Provider's network detection (this MUST throw if it cannot)
+        } // Try the Provider's network detection (this MUST throw if it cannot)
+
+
         if (network == null) {
           network = yield this.detectNetwork();
-        }
-        // This should never happen; every Provider sub-class should have
+        } // This should never happen; every Provider sub-class should have
         // suggested a network by here (or have thrown).
+
+
         if (!network) {
           logger.throwError("no network detected", _logger.Logger.errors.UNKNOWN_ERROR, {});
-        }
-        // Possible this call stacked so do not call defineReadOnly again
+        } // Possible this call stacked so do not call defineReadOnly again
+
+
         if (this._network == null) {
           if (this.anyNetwork) {
             this._network = network;
           } else {
             (0, _properties.defineReadOnly)(this, "_network", network);
           }
+
           this.emit("network", network, null);
         }
       }
+
       return this._network;
     });
-  }
-  // This will always return the most recently established network.
+  } // This will always return the most recently established network.
   // For "any", this can change (a "network" event is emitted before
   // any change is reflected); otherwise this cannot change
+
+
   get ready() {
     return (0, _web.poll)(() => {
       return this._ready().then(network => {
@@ -21082,39 +23972,47 @@ class BaseProvider extends _abstractProvider.Provider {
         if (error.code === _logger.Logger.errors.NETWORK_ERROR && error.event === "noNetwork") {
           return undefined;
         }
+
         throw error;
       });
     });
-  }
-  // @TODO: Remove this and just create a singleton formatter
+  } // @TODO: Remove this and just create a singleton formatter
+
+
   static getFormatter() {
     if (defaultFormatter == null) {
       defaultFormatter = new _formatter.Formatter();
     }
+
     return defaultFormatter;
-  }
-  // @TODO: Remove this and just use getNetwork
+  } // @TODO: Remove this and just use getNetwork
+
+
   static getNetwork(network) {
     return (0, _networks.getNetwork)(network == null ? "homestead" : network);
-  }
-  // Fetches the blockNumber, but will reuse any result that is less
+  } // Fetches the blockNumber, but will reuse any result that is less
   // than maxAge old or has been requested since the last request
+
+
   _getInternalBlockNumber(maxAge) {
     return __awaiter(this, void 0, void 0, function* () {
-      yield this._ready();
-      // Allowing stale data up to maxAge old
+      yield this._ready(); // Allowing stale data up to maxAge old
+
       if (maxAge > 0) {
         // While there are pending internal block requests...
         while (this._internalBlockNumber) {
           // ..."remember" which fetch we started with
           const internalBlockNumber = this._internalBlockNumber;
+
           try {
             // Check the result is not too stale
             const result = yield internalBlockNumber;
+
             if (getTime() - result.respTime <= maxAge) {
               return result.blockNumber;
-            }
-            // Too old; fetch a new value
+            } // Too old; fetch a new value
+
+
             break;
           } catch (error) {
             // The fetch rejected; if we are the first to get the
@@ -21127,6 +24025,7 @@ class BaseProvider extends _abstractProvider.Provider {
           }
         }
       }
+
       const reqTime = getTime();
       const checkInternalBlockNumber = (0, _properties.resolveProperties)({
         blockNumber: this.perform("getBlockNumber", {}),
@@ -21140,23 +24039,30 @@ class BaseProvider extends _abstractProvider.Provider {
           if (this._internalBlockNumber === checkInternalBlockNumber) {
             this._internalBlockNumber = null;
           }
+
           throw networkError;
         }
+
         const respTime = getTime();
         blockNumber = _bignumber.BigNumber.from(blockNumber).toNumber();
+
         if (blockNumber < this._maxInternalBlockNumber) {
           blockNumber = this._maxInternalBlockNumber;
         }
+
         this._maxInternalBlockNumber = blockNumber;
+
         this._setFastBlockNumber(blockNumber); // @TODO: Still need this?
+
+
         return {
           blockNumber,
           reqTime,
           respTime
         };
       });
-      this._internalBlockNumber = checkInternalBlockNumber;
-      // Swallow unhandled exceptions; if needed they are handled else where
+      this._internalBlockNumber = checkInternalBlockNumber; // Swallow unhandled exceptions; if needed they are handled else where
+
       checkInternalBlockNumber.catch(error => {
         // Don't null the dead (rejected) fetch, if it has already been updated
         if (this._internalBlockNumber === checkInternalBlockNumber) {
@@ -21166,30 +24072,36 @@ class BaseProvider extends _abstractProvider.Provider {
       return (yield checkInternalBlockNumber).blockNumber;
     });
   }
+
   poll() {
     return __awaiter(this, void 0, void 0, function* () {
-      const pollId = nextPollId++;
-      // Track all running promises, so we can trigger a post-poll once they are complete
+      const pollId = nextPollId++; // Track all running promises, so we can trigger a post-poll once they are complete
+
       const runners = [];
       let blockNumber = null;
+
       try {
         blockNumber = yield this._getInternalBlockNumber(100 + this.pollingInterval / 2);
       } catch (error) {
         this.emit("error", error);
         return;
       }
-      this._setFastBlockNumber(blockNumber);
-      // Emit a poll event after we have the latest (fast) block number
-      this.emit("poll", pollId, blockNumber);
-      // If the block has not changed, meh.
+
+      this._setFastBlockNumber(blockNumber); // Emit a poll event after we have the latest (fast) block number
+
+
+      this.emit("poll", pollId, blockNumber); // If the block has not changed, meh.
+
       if (blockNumber === this._lastBlockNumber) {
         this.emit("didPoll", pollId);
         return;
-      }
-      // First polling cycle, trigger a "block" events
+      } // First polling cycle, trigger a "block" events
+
+
       if (this._emitted.block === -2) {
         this._emitted.block = blockNumber - 1;
       }
+
       if (Math.abs(this._emitted.block - blockNumber) > 1000) {
         logger.warn(`network block skew detected; skipping block events (emitted=${this._emitted.block} blockNumber${blockNumber})`);
         this.emit("error", logger.makeError("network block skew detected", _logger.Logger.errors.NETWORK_ERROR, {
@@ -21203,35 +24115,40 @@ class BaseProvider extends _abstractProvider.Provider {
         for (let i = this._emitted.block + 1; i <= blockNumber; i++) {
           this.emit("block", i);
         }
-      }
-      // The emitted block was updated, check for obsolete events
+      } // The emitted block was updated, check for obsolete events
+
+
       if (this._emitted.block !== blockNumber) {
         this._emitted.block = blockNumber;
         Object.keys(this._emitted).forEach(key => {
           // The block event does not expire
           if (key === "block") {
             return;
-          }
-          // The block we were at when we emitted this event
-          const eventBlockNumber = this._emitted[key];
-          // We cannot garbage collect pending transactions or blocks here
+          } // The block we were at when we emitted this event
+
+
+          const eventBlockNumber = this._emitted[key]; // We cannot garbage collect pending transactions or blocks here
           // They should be garbage collected by the Provider when setting
           // "pending" events
+
           if (eventBlockNumber === "pending") {
             return;
-          }
-          // Evict any transaction hashes or block hashes over 12 blocks
+          } // Evict any transaction hashes or block hashes over 12 blocks
           // old, since they should not return null anyways
+
+
           if (blockNumber - eventBlockNumber > 12) {
             delete this._emitted[key];
           }
         });
-      }
-      // First polling cycle
+      } // First polling cycle
+
+
       if (this._lastBlockNumber === -2) {
         this._lastBlockNumber = blockNumber - 1;
-      }
-      // Find all transaction hashes we are waiting on
+      } // Find all transaction hashes we are waiting on
+
+
       this._events.forEach(event => {
         switch (event.type) {
           case "tx":
@@ -21241,6 +24158,7 @@ class BaseProvider extends _abstractProvider.Provider {
                 if (!receipt || receipt.blockNumber == null) {
                   return null;
                 }
+
                 this._emitted["t:" + hash] = receipt.blockNumber;
                 this.emit(hash, receipt);
                 return null;
@@ -21250,6 +24168,7 @@ class BaseProvider extends _abstractProvider.Provider {
               runners.push(runner);
               break;
             }
+
           case "filter":
             {
               const filter = event.filter;
@@ -21259,6 +24178,7 @@ class BaseProvider extends _abstractProvider.Provider {
                 if (logs.length === 0) {
                   return;
                 }
+
                 logs.forEach(log => {
                   this._emitted["b:" + log.blockHash] = log.blockNumber;
                   this._emitted["t:" + log.transactionHash] = log.blockNumber;
@@ -21272,8 +24192,9 @@ class BaseProvider extends _abstractProvider.Provider {
             }
         }
       });
-      this._lastBlockNumber = blockNumber;
-      // Once all events for this loop have been processed, emit "didPoll"
+
+      this._lastBlockNumber = blockNumber; // Once all events for this loop have been processed, emit "didPoll"
+
       Promise.all(runners).then(() => {
         this.emit("didPoll", pollId);
       }).catch(error => {
@@ -21281,19 +24202,23 @@ class BaseProvider extends _abstractProvider.Provider {
       });
       return;
     });
-  }
-  // Deprecated; do not use this
+  } // Deprecated; do not use this
+
+
   resetEventsBlock(blockNumber) {
     this._lastBlockNumber = blockNumber - 1;
+
     if (this.polling) {
       this.poll();
     }
   }
+
   get network() {
     return this._network;
-  }
-  // This method should query the network if the underlying network
+  } // This method should query the network if the underlying network
   // can change, such as when connected to a JSON-RPC backend
+
+
   detectNetwork() {
     return __awaiter(this, void 0, void 0, function* () {
       return logger.throwError("provider does not support network detection", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
@@ -21301,33 +24226,36 @@ class BaseProvider extends _abstractProvider.Provider {
       });
     });
   }
+
   getNetwork() {
     return __awaiter(this, void 0, void 0, function* () {
-      const network = yield this._ready();
-      // Make sure we are still connected to the same network; this is
+      const network = yield this._ready(); // Make sure we are still connected to the same network; this is
       // only an external call for backends which can have the underlying
       // network change spontaneously
+
       const currentNetwork = yield this.detectNetwork();
+
       if (network.chainId !== currentNetwork.chainId) {
         // We are allowing network changes, things can get complex fast;
         // make sure you know what you are doing if you use "any"
         if (this.anyNetwork) {
-          this._network = currentNetwork;
-          // Reset all internal block number guards and caches
+          this._network = currentNetwork; // Reset all internal block number guards and caches
+
           this._lastBlockNumber = -2;
           this._fastBlockNumber = null;
           this._fastBlockNumberPromise = null;
           this._fastQueryDate = 0;
           this._emitted.block = -2;
           this._maxInternalBlockNumber = -1024;
-          this._internalBlockNumber = null;
-          // The "network" event MUST happen before this method resolves
+          this._internalBlockNumber = null; // The "network" event MUST happen before this method resolves
           // so any events have a chance to unregister, so we stall an
           // additional event loop before returning from /this/ call
+
           this.emit("network", currentNetwork, network);
           yield stall(0);
           return this._network;
         }
+
         const error = logger.makeError("underlying network changed", _logger.Logger.errors.NETWORK_ERROR, {
           event: "changed",
           network: network,
@@ -21336,35 +24264,42 @@ class BaseProvider extends _abstractProvider.Provider {
         this.emit("error", error);
         throw error;
       }
+
       return network;
     });
   }
+
   get blockNumber() {
     this._getInternalBlockNumber(100 + this.pollingInterval / 2).then(blockNumber => {
       this._setFastBlockNumber(blockNumber);
     }, error => {});
+
     return this._fastBlockNumber != null ? this._fastBlockNumber : -1;
   }
+
   get polling() {
     return this._poller != null;
   }
+
   set polling(value) {
     if (value && !this._poller) {
       this._poller = setInterval(() => {
         this.poll();
       }, this.pollingInterval);
+
       if (!this._bootstrapPoll) {
         this._bootstrapPoll = setTimeout(() => {
-          this.poll();
-          // We block additional polls until the polling interval
+          this.poll(); // We block additional polls until the polling interval
           // is done, to prevent overwhelming the poll function
+
           this._bootstrapPoll = setTimeout(() => {
             // If polling was disabled, something may require a poke
             // since starting the bootstrap poll and it was disabled
             if (!this._poller) {
               this.poll();
-            }
-            // Clear out the bootstrap so we can do another
+            } // Clear out the bootstrap so we can do another
+
+
             this._bootstrapPoll = null;
           }, this.pollingInterval);
         }, 0);
@@ -21374,14 +24309,18 @@ class BaseProvider extends _abstractProvider.Provider {
       this._poller = null;
     }
   }
+
   get pollingInterval() {
     return this._pollingInterval;
   }
+
   set pollingInterval(value) {
     if (typeof value !== "number" || value <= 0 || parseInt(String(value)) != value) {
       throw new Error("invalid polling interval");
     }
+
     this._pollingInterval = value;
+
     if (this._poller) {
       clearInterval(this._poller);
       this._poller = setInterval(() => {
@@ -21389,137 +24328,165 @@ class BaseProvider extends _abstractProvider.Provider {
       }, this._pollingInterval);
     }
   }
+
   _getFastBlockNumber() {
-    const now = getTime();
-    // Stale block number, request a newer value
+    const now = getTime(); // Stale block number, request a newer value
+
     if (now - this._fastQueryDate > 2 * this._pollingInterval) {
       this._fastQueryDate = now;
       this._fastBlockNumberPromise = this.getBlockNumber().then(blockNumber => {
         if (this._fastBlockNumber == null || blockNumber > this._fastBlockNumber) {
           this._fastBlockNumber = blockNumber;
         }
+
         return this._fastBlockNumber;
       });
     }
+
     return this._fastBlockNumberPromise;
   }
+
   _setFastBlockNumber(blockNumber) {
     // Older block, maybe a stale request
     if (this._fastBlockNumber != null && blockNumber < this._fastBlockNumber) {
       return;
-    }
-    // Update the time we updated the blocknumber
-    this._fastQueryDate = getTime();
-    // Newer block number, use  it
+    } // Update the time we updated the blocknumber
+
+
+    this._fastQueryDate = getTime(); // Newer block number, use  it
+
     if (this._fastBlockNumber == null || blockNumber > this._fastBlockNumber) {
       this._fastBlockNumber = blockNumber;
       this._fastBlockNumberPromise = Promise.resolve(blockNumber);
     }
   }
+
   waitForTransaction(transactionHash, confirmations, timeout) {
     return __awaiter(this, void 0, void 0, function* () {
       return this._waitForTransaction(transactionHash, confirmations == null ? 1 : confirmations, timeout || 0, null);
     });
   }
+
   _waitForTransaction(transactionHash, confirmations, timeout, replaceable) {
     return __awaiter(this, void 0, void 0, function* () {
-      const receipt = yield this.getTransactionReceipt(transactionHash);
-      // Receipt is already good
+      const receipt = yield this.getTransactionReceipt(transactionHash); // Receipt is already good
+
       if ((receipt ? receipt.confirmations : 0) >= confirmations) {
         return receipt;
-      }
-      // Poll until the receipt is good...
+      } // Poll until the receipt is good...
+
+
       return new Promise((resolve, reject) => {
         const cancelFuncs = [];
         let done = false;
+
         const alreadyDone = function () {
           if (done) {
             return true;
           }
+
           done = true;
           cancelFuncs.forEach(func => {
             func();
           });
           return false;
         };
+
         const minedHandler = receipt => {
           if (receipt.confirmations < confirmations) {
             return;
           }
+
           if (alreadyDone()) {
             return;
           }
+
           resolve(receipt);
         };
+
         this.on(transactionHash, minedHandler);
         cancelFuncs.push(() => {
           this.removeListener(transactionHash, minedHandler);
         });
+
         if (replaceable) {
           let lastBlockNumber = replaceable.startBlock;
           let scannedBlock = null;
+
           const replaceHandler = blockNumber => __awaiter(this, void 0, void 0, function* () {
             if (done) {
               return;
-            }
-            // Wait 1 second; this is only used in the case of a fault, so
+            } // Wait 1 second; this is only used in the case of a fault, so
             // we will trade off a little bit of latency for more consistent
             // results and fewer JSON-RPC calls
+
+
             yield stall(1000);
             this.getTransactionCount(replaceable.from).then(nonce => __awaiter(this, void 0, void 0, function* () {
               if (done) {
                 return;
               }
+
               if (nonce <= replaceable.nonce) {
                 lastBlockNumber = blockNumber;
               } else {
                 // First check if the transaction was mined
                 {
                   const mined = yield this.getTransaction(transactionHash);
+
                   if (mined && mined.blockNumber != null) {
                     return;
                   }
-                }
-                // First time scanning. We start a little earlier for some
+                } // First time scanning. We start a little earlier for some
                 // wiggle room here to handle the eventually consistent nature
                 // of blockchain (e.g. the getTransactionCount was for a
                 // different block)
+
                 if (scannedBlock == null) {
                   scannedBlock = lastBlockNumber - 3;
+
                   if (scannedBlock < replaceable.startBlock) {
                     scannedBlock = replaceable.startBlock;
                   }
                 }
+
                 while (scannedBlock <= blockNumber) {
                   if (done) {
                     return;
                   }
+
                   const block = yield this.getBlockWithTransactions(scannedBlock);
+
                   for (let ti = 0; ti < block.transactions.length; ti++) {
-                    const tx = block.transactions[ti];
-                    // Successfully mined!
+                    const tx = block.transactions[ti]; // Successfully mined!
+
                     if (tx.hash === transactionHash) {
                       return;
-                    }
-                    // Matches our transaction from and nonce; its a replacement
+                    } // Matches our transaction from and nonce; its a replacement
+
+
                     if (tx.from === replaceable.from && tx.nonce === replaceable.nonce) {
                       if (done) {
                         return;
-                      }
-                      // Get the receipt of the replacement
-                      const receipt = yield this.waitForTransaction(tx.hash, confirmations);
-                      // Already resolved or rejected (prolly a timeout)
+                      } // Get the receipt of the replacement
+
+
+                      const receipt = yield this.waitForTransaction(tx.hash, confirmations); // Already resolved or rejected (prolly a timeout)
+
                       if (alreadyDone()) {
                         return;
-                      }
-                      // The reason we were replaced
+                      } // The reason we were replaced
+
+
                       let reason = "replaced";
+
                       if (tx.data === replaceable.data && tx.to === replaceable.to && tx.value.eq(replaceable.value)) {
                         reason = "repriced";
                       } else if (tx.data === "0x" && tx.from === tx.to && tx.value.isZero()) {
                         reason = "cancelled";
-                      }
-                      // Explain why we were replaced
+                      } // Explain why we were replaced
+
+
                       reject(logger.makeError("transaction was replaced", _logger.Logger.errors.TRANSACTION_REPLACED, {
                         cancelled: reason === "replaced" || reason === "cancelled",
                         reason,
@@ -21530,40 +24497,50 @@ class BaseProvider extends _abstractProvider.Provider {
                       return;
                     }
                   }
+
                   scannedBlock++;
                 }
               }
+
               if (done) {
                 return;
               }
+
               this.once("block", replaceHandler);
             }), error => {
               if (done) {
                 return;
               }
+
               this.once("block", replaceHandler);
             });
           });
+
           if (done) {
             return;
           }
+
           this.once("block", replaceHandler);
           cancelFuncs.push(() => {
             this.removeListener("block", replaceHandler);
           });
         }
+
         if (typeof timeout === "number" && timeout > 0) {
           const timer = setTimeout(() => {
             if (alreadyDone()) {
               return;
             }
+
             reject(logger.makeError("timeout exceeded", _logger.Logger.errors.TIMEOUT, {
               timeout: timeout
             }));
           }, timeout);
+
           if (timer.unref) {
             timer.unref();
           }
+
           cancelFuncs.push(() => {
             clearTimeout(timer);
           });
@@ -21571,15 +24548,18 @@ class BaseProvider extends _abstractProvider.Provider {
       });
     });
   }
+
   getBlockNumber() {
     return __awaiter(this, void 0, void 0, function* () {
       return this._getInternalBlockNumber(0);
     });
   }
+
   getGasPrice() {
     return __awaiter(this, void 0, void 0, function* () {
       yield this.getNetwork();
       const result = yield this.perform("getGasPrice", {});
+
       try {
         return _bignumber.BigNumber.from(result);
       } catch (error) {
@@ -21591,6 +24571,7 @@ class BaseProvider extends _abstractProvider.Provider {
       }
     });
   }
+
   getBalance(addressOrName, blockTag) {
     return __awaiter(this, void 0, void 0, function* () {
       yield this.getNetwork();
@@ -21599,6 +24580,7 @@ class BaseProvider extends _abstractProvider.Provider {
         blockTag: this._getBlockTag(blockTag)
       });
       const result = yield this.perform("getBalance", params);
+
       try {
         return _bignumber.BigNumber.from(result);
       } catch (error) {
@@ -21611,6 +24593,7 @@ class BaseProvider extends _abstractProvider.Provider {
       }
     });
   }
+
   getTransactionCount(addressOrName, blockTag) {
     return __awaiter(this, void 0, void 0, function* () {
       yield this.getNetwork();
@@ -21619,6 +24602,7 @@ class BaseProvider extends _abstractProvider.Provider {
         blockTag: this._getBlockTag(blockTag)
       });
       const result = yield this.perform("getTransactionCount", params);
+
       try {
         return _bignumber.BigNumber.from(result).toNumber();
       } catch (error) {
@@ -21631,6 +24615,7 @@ class BaseProvider extends _abstractProvider.Provider {
       }
     });
   }
+
   getCode(addressOrName, blockTag) {
     return __awaiter(this, void 0, void 0, function* () {
       yield this.getNetwork();
@@ -21639,6 +24624,7 @@ class BaseProvider extends _abstractProvider.Provider {
         blockTag: this._getBlockTag(blockTag)
       });
       const result = yield this.perform("getCode", params);
+
       try {
         return (0, _bytes.hexlify)(result);
       } catch (error) {
@@ -21651,6 +24637,7 @@ class BaseProvider extends _abstractProvider.Provider {
       }
     });
   }
+
   getStorageAt(addressOrName, position, blockTag) {
     return __awaiter(this, void 0, void 0, function* () {
       yield this.getNetwork();
@@ -21660,6 +24647,7 @@ class BaseProvider extends _abstractProvider.Provider {
         position: Promise.resolve(position).then(p => (0, _bytes.hexValue)(p))
       });
       const result = yield this.perform("getStorageAt", params);
+
       try {
         return (0, _bytes.hexlify)(result);
       } catch (error) {
@@ -21671,29 +24659,35 @@ class BaseProvider extends _abstractProvider.Provider {
         });
       }
     });
-  }
-  // This should be called by any subclass wrapping a TransactionResponse
+  } // This should be called by any subclass wrapping a TransactionResponse
+
+
   _wrapTransaction(tx, hash, startBlock) {
     if (hash != null && (0, _bytes.hexDataLength)(hash) !== 32) {
       throw new Error("invalid response - sendTransaction");
     }
-    const result = tx;
-    // Check the hash we expect is the same as the hash the server reported
+
+    const result = tx; // Check the hash we expect is the same as the hash the server reported
+
     if (hash != null && tx.hash !== hash) {
       logger.throwError("Transaction hash mismatch from Provider.sendTransaction.", _logger.Logger.errors.UNKNOWN_ERROR, {
         expectedHash: tx.hash,
         returnedHash: hash
       });
     }
+
     result.wait = (confirms, timeout) => __awaiter(this, void 0, void 0, function* () {
       if (confirms == null) {
         confirms = 1;
       }
+
       if (timeout == null) {
         timeout = 0;
-      }
-      // Get the details to detect replacement
+      } // Get the details to detect replacement
+
+
       let replacement = undefined;
+
       if (confirms !== 0 && startBlock != null) {
         replacement = {
           data: tx.data,
@@ -21704,12 +24698,16 @@ class BaseProvider extends _abstractProvider.Provider {
           startBlock
         };
       }
+
       const receipt = yield this._waitForTransaction(tx.hash, confirms, timeout, replacement);
+
       if (receipt == null && confirms === 0) {
         return null;
-      }
-      // No longer pending, allow the polling loop to garbage collect this
+      } // No longer pending, allow the polling loop to garbage collect this
+
+
       this._emitted["t:" + tx.hash] = receipt.blockNumber;
+
       if (receipt.status === 0) {
         logger.throwError("transaction failed", _logger.Logger.errors.CALL_EXCEPTION, {
           transactionHash: tx.hash,
@@ -21717,19 +24715,25 @@ class BaseProvider extends _abstractProvider.Provider {
           receipt: receipt
         });
       }
+
       return receipt;
     });
+
     return result;
   }
+
   sendTransaction(signedTransaction) {
     return __awaiter(this, void 0, void 0, function* () {
       yield this.getNetwork();
       const hexTx = yield Promise.resolve(signedTransaction).then(t => (0, _bytes.hexlify)(t));
       const tx = this.formatter.transaction(signedTransaction);
+
       if (tx.confirmations == null) {
         tx.confirmations = 0;
       }
+
       const blockNumber = yield this._getInternalBlockNumber(100 + 2 * this.pollingInterval);
+
       try {
         const hash = yield this.perform("sendTransaction", {
           signedTransaction: hexTx
@@ -21742,6 +24746,7 @@ class BaseProvider extends _abstractProvider.Provider {
       }
     });
   }
+
   _getTransactionRequest(transaction) {
     return __awaiter(this, void 0, void 0, function* () {
       const values = yield transaction;
@@ -21750,54 +24755,66 @@ class BaseProvider extends _abstractProvider.Provider {
         if (values[key] == null) {
           return;
         }
+
         tx[key] = Promise.resolve(values[key]).then(v => v ? this._getAddress(v) : null);
       });
       ["gasLimit", "gasPrice", "maxFeePerGas", "maxPriorityFeePerGas", "value"].forEach(key => {
         if (values[key] == null) {
           return;
         }
+
         tx[key] = Promise.resolve(values[key]).then(v => v ? _bignumber.BigNumber.from(v) : null);
       });
       ["type"].forEach(key => {
         if (values[key] == null) {
           return;
         }
+
         tx[key] = Promise.resolve(values[key]).then(v => v != null ? v : null);
       });
+
       if (values.accessList) {
         tx.accessList = this.formatter.accessList(values.accessList);
       }
+
       ["data"].forEach(key => {
         if (values[key] == null) {
           return;
         }
+
         tx[key] = Promise.resolve(values[key]).then(v => v ? (0, _bytes.hexlify)(v) : null);
       });
       return this.formatter.transactionRequest(yield (0, _properties.resolveProperties)(tx));
     });
   }
+
   _getFilter(filter) {
     return __awaiter(this, void 0, void 0, function* () {
       filter = yield filter;
       const result = {};
+
       if (filter.address != null) {
         result.address = this._getAddress(filter.address);
       }
+
       ["blockHash", "topics"].forEach(key => {
         if (filter[key] == null) {
           return;
         }
+
         result[key] = filter[key];
       });
       ["fromBlock", "toBlock"].forEach(key => {
         if (filter[key] == null) {
           return;
         }
+
         result[key] = this._getBlockTag(filter[key]);
       });
       return this.formatter.filter(yield (0, _properties.resolveProperties)(result));
     });
   }
+
   call(transaction, blockTag) {
     return __awaiter(this, void 0, void 0, function* () {
       yield this.getNetwork();
@@ -21806,6 +24823,7 @@ class BaseProvider extends _abstractProvider.Provider {
         blockTag: this._getBlockTag(blockTag)
       });
       const result = yield this.perform("call", params);
+
       try {
         return (0, _bytes.hexlify)(result);
       } catch (error) {
@@ -21818,6 +24836,7 @@ class BaseProvider extends _abstractProvider.Provider {
       }
     });
   }
+
   estimateGas(transaction) {
     return __awaiter(this, void 0, void 0, function* () {
       yield this.getNetwork();
@@ -21825,6 +24844,7 @@ class BaseProvider extends _abstractProvider.Provider {
         transaction: this._getTransactionRequest(transaction)
       });
       const result = yield this.perform("estimateGas", params);
+
       try {
         return _bignumber.BigNumber.from(result);
       } catch (error) {
@@ -21837,35 +24857,43 @@ class BaseProvider extends _abstractProvider.Provider {
       }
     });
   }
+
   _getAddress(addressOrName) {
     return __awaiter(this, void 0, void 0, function* () {
       addressOrName = yield addressOrName;
+
       if (typeof addressOrName !== "string") {
         logger.throwArgumentError("invalid address or ENS name", "name", addressOrName);
       }
+
       const address = yield this.resolveName(addressOrName);
+
       if (address == null) {
         logger.throwError("ENS name not configured", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
           operation: `resolveName(${JSON.stringify(addressOrName)})`
         });
       }
+
       return address;
     });
   }
+
   _getBlock(blockHashOrBlockTag, includeTransactions) {
     return __awaiter(this, void 0, void 0, function* () {
       yield this.getNetwork();
-      blockHashOrBlockTag = yield blockHashOrBlockTag;
-      // If blockTag is a number (not "latest", etc), this is the block number
+      blockHashOrBlockTag = yield blockHashOrBlockTag; // If blockTag is a number (not "latest", etc), this is the block number
+
       let blockNumber = -128;
       const params = {
         includeTransactions: !!includeTransactions
       };
+
       if ((0, _bytes.isHexString)(blockHashOrBlockTag, 32)) {
         params.blockHash = blockHashOrBlockTag;
       } else {
         try {
           params.blockTag = yield this._getBlockTag(blockHashOrBlockTag);
+
           if ((0, _bytes.isHexString)(params.blockTag)) {
             blockNumber = parseInt(params.blockTag.substring(2), 16);
           }
@@ -21873,9 +24901,10 @@ class BaseProvider extends _abstractProvider.Provider {
           logger.throwArgumentError("invalid block hash or block tag", "blockHashOrBlockTag", blockHashOrBlockTag);
         }
       }
+
       return (0, _web.poll)(() => __awaiter(this, void 0, void 0, function* () {
-        const block = yield this.perform("getBlock", params);
-        // Block was not found
+        const block = yield this.perform("getBlock", params); // Block was not found
+
         if (block == null) {
           // For blockhashes, if we didn't say it existed, that blockhash may
           // not exist. If we did see it though, perhaps from a log, we know
@@ -21884,51 +24913,64 @@ class BaseProvider extends _abstractProvider.Provider {
             if (this._emitted["b:" + params.blockHash] == null) {
               return null;
             }
-          }
-          // For block tags, if we are asking for a future block, we return null
+          } // For block tags, if we are asking for a future block, we return null
+
+
           if (params.blockTag != null) {
             if (blockNumber > this._emitted.block) {
               return null;
             }
-          }
-          // Retry on the next block
+          } // Retry on the next block
+
+
           return undefined;
-        }
-        // Add transactions
+        } // Add transactions
+
+
         if (includeTransactions) {
           let blockNumber = null;
+
           for (let i = 0; i < block.transactions.length; i++) {
             const tx = block.transactions[i];
+
             if (tx.blockNumber == null) {
               tx.confirmations = 0;
             } else if (tx.confirmations == null) {
               if (blockNumber == null) {
                 blockNumber = yield this._getInternalBlockNumber(100 + 2 * this.pollingInterval);
-              }
-              // Add the confirmations using the fast block number (pessimistic)
+              } // Add the confirmations using the fast block number (pessimistic)
+
+
               let confirmations = blockNumber - tx.blockNumber + 1;
+
               if (confirmations <= 0) {
                 confirmations = 1;
               }
+
               tx.confirmations = confirmations;
             }
           }
+
           const blockWithTxs = this.formatter.blockWithTransactions(block);
           blockWithTxs.transactions = blockWithTxs.transactions.map(tx => this._wrapTransaction(tx));
           return blockWithTxs;
         }
+
         return this.formatter.block(block);
       }), {
         oncePoll: this
       });
     });
   }
+
   getBlock(blockHashOrBlockTag) {
     return this._getBlock(blockHashOrBlockTag, false);
   }
+
   getBlockWithTransactions(blockHashOrBlockTag) {
     return this._getBlock(blockHashOrBlockTag, true);
   }
+
   getTransaction(transactionHash) {
     return __awaiter(this, void 0, void 0, function* () {
       yield this.getNetwork();
@@ -21938,30 +24980,38 @@ class BaseProvider extends _abstractProvider.Provider {
       };
       return (0, _web.poll)(() => __awaiter(this, void 0, void 0, function* () {
         const result = yield this.perform("getTransaction", params);
+
         if (result == null) {
           if (this._emitted["t:" + transactionHash] == null) {
             return null;
           }
+
           return undefined;
         }
+
         const tx = this.formatter.transactionResponse(result);
+
         if (tx.blockNumber == null) {
           tx.confirmations = 0;
         } else if (tx.confirmations == null) {
-          const blockNumber = yield this._getInternalBlockNumber(100 + 2 * this.pollingInterval);
-          // Add the confirmations using the fast block number (pessimistic)
+          const blockNumber = yield this._getInternalBlockNumber(100 + 2 * this.pollingInterval); // Add the confirmations using the fast block number (pessimistic)
+
           let confirmations = blockNumber - tx.blockNumber + 1;
+
           if (confirmations <= 0) {
             confirmations = 1;
           }
+
           tx.confirmations = confirmations;
         }
+
         return this._wrapTransaction(tx);
       }), {
         oncePoll: this
       });
     });
   }
+
   getTransactionReceipt(transactionHash) {
     return __awaiter(this, void 0, void 0, function* () {
       yield this.getNetwork();
@@ -21971,34 +25021,43 @@ class BaseProvider extends _abstractProvider.Provider {
       };
       return (0, _web.poll)(() => __awaiter(this, void 0, void 0, function* () {
         const result = yield this.perform("getTransactionReceipt", params);
+
         if (result == null) {
           if (this._emitted["t:" + transactionHash] == null) {
             return null;
           }
+
           return undefined;
-        }
-        // "geth-etc" returns receipts before they are ready
+        } // "geth-etc" returns receipts before they are ready
+
+
         if (result.blockHash == null) {
           return undefined;
         }
+
         const receipt = this.formatter.receipt(result);
+
         if (receipt.blockNumber == null) {
           receipt.confirmations = 0;
         } else if (receipt.confirmations == null) {
-          const blockNumber = yield this._getInternalBlockNumber(100 + 2 * this.pollingInterval);
-          // Add the confirmations using the fast block number (pessimistic)
+          const blockNumber = yield this._getInternalBlockNumber(100 + 2 * this.pollingInterval); // Add the confirmations using the fast block number (pessimistic)
+
           let confirmations = blockNumber - receipt.blockNumber + 1;
+
           if (confirmations <= 0) {
             confirmations = 1;
           }
+
           receipt.confirmations = confirmations;
         }
+
         return receipt;
       }), {
         oncePoll: this
       });
     });
   }
+
   getLogs(filter) {
     return __awaiter(this, void 0, void 0, function* () {
       yield this.getNetwork();
@@ -22014,75 +25073,91 @@ class BaseProvider extends _abstractProvider.Provider {
       return _formatter.Formatter.arrayOf(this.formatter.filterLog.bind(this.formatter))(logs);
     });
   }
+
   getEtherPrice() {
     return __awaiter(this, void 0, void 0, function* () {
       yield this.getNetwork();
       return this.perform("getEtherPrice", {});
     });
   }
+
   _getBlockTag(blockTag) {
     return __awaiter(this, void 0, void 0, function* () {
       blockTag = yield blockTag;
+
       if (typeof blockTag === "number" && blockTag < 0) {
         if (blockTag % 1) {
           logger.throwArgumentError("invalid BlockTag", "blockTag", blockTag);
         }
+
         let blockNumber = yield this._getInternalBlockNumber(100 + 2 * this.pollingInterval);
         blockNumber += blockTag;
+
         if (blockNumber < 0) {
           blockNumber = 0;
         }
+
         return this.formatter.blockTag(blockNumber);
       }
+
       return this.formatter.blockTag(blockTag);
     });
   }
+
   getResolver(name) {
     return __awaiter(this, void 0, void 0, function* () {
       try {
         const address = yield this._getResolver(name);
+
         if (address == null) {
           return null;
         }
+
         return new Resolver(this, address, name);
       } catch (error) {
         if (error.code === _logger.Logger.errors.CALL_EXCEPTION) {
           return null;
         }
+
         return null;
       }
     });
   }
+
   _getResolver(name) {
     return __awaiter(this, void 0, void 0, function* () {
       // Get the resolver from the blockchain
-      const network = yield this.getNetwork();
-      // No ENS...
+      const network = yield this.getNetwork(); // No ENS...
+
       if (!network.ensAddress) {
         logger.throwError("network does not support ENS", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
           operation: "ENS",
           network: network.name
         });
-      }
-      // keccak256("resolver(bytes32)")
+      } // keccak256("resolver(bytes32)")
+
+
       const transaction = {
         to: network.ensAddress,
         data: "0x0178b8bf" + (0, _hash.namehash)(name).substring(2)
       };
+
       try {
         return this.formatter.callAddress(yield this.call(transaction));
       } catch (error) {
         if (error.code === _logger.Logger.errors.CALL_EXCEPTION) {
           return null;
         }
+
         throw error;
       }
     });
   }
+
   resolveName(name) {
     return __awaiter(this, void 0, void 0, function* () {
-      name = yield name;
-      // If it is already an address, nothing to resolve
+      name = yield name; // If it is already an address, nothing to resolve
+
       try {
         return Promise.resolve(this.formatter.address(name));
       } catch (error) {
@@ -22091,102 +25166,132 @@ class BaseProvider extends _abstractProvider.Provider {
           throw error;
         }
       }
+
       if (typeof name !== "string") {
         logger.throwArgumentError("invalid ENS name", "name", name);
-      }
-      // Get the addr from the resovler
+      } // Get the addr from the resovler
+
+
       const resolver = yield this.getResolver(name);
+
       if (!resolver) {
         return null;
       }
+
       return yield resolver.getAddress();
     });
   }
+
   lookupAddress(address) {
     return __awaiter(this, void 0, void 0, function* () {
       address = yield address;
       address = this.formatter.address(address);
       const reverseName = address.substring(2).toLowerCase() + ".addr.reverse";
       const resolverAddress = yield this._getResolver(reverseName);
+
       if (!resolverAddress) {
         return null;
-      }
-      // keccak("name(bytes32)")
+      } // keccak("name(bytes32)")
+
+
       let bytes = (0, _bytes.arrayify)(yield this.call({
         to: resolverAddress,
         data: "0x691f3431" + (0, _hash.namehash)(reverseName).substring(2)
-      }));
-      // Strip off the dynamic string pointer (0x20)
+      })); // Strip off the dynamic string pointer (0x20)
+
       if (bytes.length < 32 || !_bignumber.BigNumber.from(bytes.slice(0, 32)).eq(32)) {
         return null;
       }
-      bytes = bytes.slice(32);
-      // Not a length-prefixed string
+
+      bytes = bytes.slice(32); // Not a length-prefixed string
+
       if (bytes.length < 32) {
         return null;
-      }
-      // Get the length of the string (from the length-prefix)
+      } // Get the length of the string (from the length-prefix)
+
+
       const length = _bignumber.BigNumber.from(bytes.slice(0, 32)).toNumber();
-      bytes = bytes.slice(32);
-      // Length longer than available data
+
+      bytes = bytes.slice(32); // Length longer than available data
+
       if (length > bytes.length) {
         return null;
       }
-      const name = (0, _strings.toUtf8String)(bytes.slice(0, length));
-      // Make sure the reverse record matches the foward record
+
+      const name = (0, _strings.toUtf8String)(bytes.slice(0, length)); // Make sure the reverse record matches the foward record
+
       const addr = yield this.resolveName(name);
+
       if (addr != address) {
         return null;
       }
+
       return name;
     });
   }
+
   getAvatar(nameOrAddress) {
     return __awaiter(this, void 0, void 0, function* () {
       let resolver = null;
+
       if ((0, _bytes.isHexString)(nameOrAddress)) {
         // Address; reverse lookup
         const address = this.formatter.address(nameOrAddress);
         const reverseName = address.substring(2).toLowerCase() + ".addr.reverse";
         const resolverAddress = yield this._getResolver(reverseName);
+
         if (!resolverAddress) {
           return null;
         }
+
         resolver = new Resolver(this, resolverAddress, "_", address);
       } else {
         // ENS name; forward lookup
         resolver = yield this.getResolver(nameOrAddress);
       }
+
       const avatar = yield resolver.getAvatar();
+
       if (avatar == null) {
         return null;
       }
+
       return avatar.url;
     });
   }
+
   perform(method, params) {
     return logger.throwError(method + " not implemented", _logger.Logger.errors.NOT_IMPLEMENTED, {
       operation: method
     });
   }
+
   _startEvent(event) {
     this.polling = this._events.filter(e => e.pollable()).length > 0;
   }
+
   _stopEvent(event) {
     this.polling = this._events.filter(e => e.pollable()).length > 0;
   }
+
   _addEventListener(eventName, listener, once) {
     const event = new Event(getEventTag(eventName), listener, once);
+
     this._events.push(event);
+
     this._startEvent(event);
+
     return this;
   }
+
   on(eventName, listener) {
     return this._addEventListener(eventName, listener, false);
   }
+
   once(eventName, listener) {
     return this._addEventListener(eventName, listener, true);
   }
+
   emit(eventName, ...args) {
     let result = false;
     let stopped = [];
@@ -22195,14 +25300,17 @@ class BaseProvider extends _abstractProvider.Provider {
       if (event.tag !== eventTag) {
         return true;
       }
+
       setTimeout(() => {
         event.listener.apply(this, args);
       }, 0);
       result = true;
+
       if (event.once) {
         stopped.push(event);
         return false;
       }
+
       return true;
     });
     stopped.forEach(event => {
@@ -22210,26 +25318,32 @@ class BaseProvider extends _abstractProvider.Provider {
     });
     return result;
   }
+
   listenerCount(eventName) {
     if (!eventName) {
       return this._events.length;
     }
+
     let eventTag = getEventTag(eventName);
     return this._events.filter(event => {
       return event.tag === eventTag;
     }).length;
   }
+
   listeners(eventName) {
     if (eventName == null) {
       return this._events.map(event => event.listener);
     }
+
     let eventTag = getEventTag(eventName);
     return this._events.filter(event => event.tag === eventTag).map(event => event.listener);
   }
+
   off(eventName, listener) {
     if (listener == null) {
       return this.removeAllListeners(eventName);
     }
+
     const stopped = [];
     let found = false;
     let eventTag = getEventTag(eventName);
@@ -22237,9 +25351,11 @@ class BaseProvider extends _abstractProvider.Provider {
       if (event.tag !== eventTag || event.listener != listener) {
         return true;
       }
+
       if (found) {
         return true;
       }
+
       found = true;
       stopped.push(event);
       return false;
@@ -22249,8 +25365,10 @@ class BaseProvider extends _abstractProvider.Provider {
     });
     return this;
   }
+
   removeAllListeners(eventName) {
     let stopped = [];
+
     if (eventName == null) {
       stopped = this._events;
       this._events = [];
@@ -22260,16 +25378,20 @@ class BaseProvider extends _abstractProvider.Provider {
         if (event.tag !== eventTag) {
           return true;
         }
+
         stopped.push(event);
         return false;
       });
     }
+
     stopped.forEach(event => {
       this._stopEvent(event);
     });
     return this;
   }
+
 }
+
 exports.BaseProvider = BaseProvider;
 },{"@ethersproject/abstract-provider":"GKyj","@ethersproject/basex":"Q7g1","@ethersproject/bignumber":"efJK","@ethersproject/bytes":"aqkS","@ethersproject/constants":"FOhG","@ethersproject/hash":"eHxR","@ethersproject/networks":"k9P0","@ethersproject/properties":"JuuX","@ethersproject/sha2":"C9Hj","@ethersproject/strings":"ZW9k","@ethersproject/web":"egXK","bech32":"LibZ","@ethersproject/logger":"kMNH","./_version":"UhEn","./formatter":"nnuj"}],"HkBu":[function(require,module,exports) {
 "use strict";
@@ -22278,23 +25400,36 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.JsonRpcSigner = exports.JsonRpcProvider = void 0;
+
 var _abstractSigner = require("@ethersproject/abstract-signer");
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _hash = require("@ethersproject/hash");
+
 var _properties = require("@ethersproject/properties");
+
 var _strings = require("@ethersproject/strings");
+
 var _transactions = require("@ethersproject/transactions");
+
 var _web = require("@ethersproject/web");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var _baseProvider = require("./base-provider");
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -22303,6 +25438,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -22310,28 +25446,36 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 const logger = new _logger.Logger(_version.version);
 const errorGas = ["call", "estimateGas"];
+
 function checkError(method, error, params) {
   // Undo the "convenience" some nodes are attempting to prevent backwards
   // incompatibility; maybe for v6 consider forwarding reverts as errors
   if (method === "call" && error.code === _logger.Logger.errors.SERVER_ERROR) {
     const e = error.error;
+
     if (e && e.message.match("reverted") && (0, _bytes.isHexString)(e.data)) {
       return e.data;
     }
+
     logger.throwError("missing revert data in call exception", _logger.Logger.errors.CALL_EXCEPTION, {
       error,
       data: "0x"
     });
   }
+
   let message = error.message;
+
   if (error.code === _logger.Logger.errors.SERVER_ERROR && error.error && typeof error.error.message === "string") {
     message = error.error.message;
   } else if (typeof error.body === "string") {
@@ -22339,33 +25483,37 @@ function checkError(method, error, params) {
   } else if (typeof error.responseText === "string") {
     message = error.responseText;
   }
+
   message = (message || "").toLowerCase();
-  const transaction = params.transaction || params.signedTransaction;
-  // "insufficient funds for gas * price + value + cost(data)"
+  const transaction = params.transaction || params.signedTransaction; // "insufficient funds for gas * price + value + cost(data)"
+
   if (message.match(/insufficient funds|base fee exceeds gas limit/)) {
     logger.throwError("insufficient funds for intrinsic transaction cost", _logger.Logger.errors.INSUFFICIENT_FUNDS, {
       error,
       method,
       transaction
     });
-  }
-  // "nonce too low"
+  } // "nonce too low"
+
+
   if (message.match(/nonce too low/)) {
     logger.throwError("nonce has already been used", _logger.Logger.errors.NONCE_EXPIRED, {
       error,
       method,
       transaction
     });
-  }
-  // "replacement transaction underpriced"
+  } // "replacement transaction underpriced"
+
+
   if (message.match(/replacement transaction underpriced/)) {
     logger.throwError("replacement fee too low", _logger.Logger.errors.REPLACEMENT_UNDERPRICED, {
       error,
       method,
       transaction
     });
-  }
-  // "replacement transaction underpriced"
+  } // "replacement transaction underpriced"
+
+
   if (message.match(/only replay-protected/)) {
     logger.throwError("legacy pre-eip-155 transactions not supported", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
       error,
@@ -22373,6 +25521,7 @@ function checkError(method, error, params) {
       transaction
     });
   }
+
   if (errorGas.indexOf(method) >= 0 && message.match(/gas required exceeds allowance|always failing transaction|execution reverted/)) {
     logger.throwError("cannot estimate gas; transaction may fail or may require manual gas limit", _logger.Logger.errors.UNPREDICTABLE_GAS_LIMIT, {
       error,
@@ -22380,13 +25529,16 @@ function checkError(method, error, params) {
       transaction
     });
   }
+
   throw error;
 }
+
 function timer(timeout) {
   return new Promise(function (resolve) {
     setTimeout(resolve, timeout);
   });
 }
+
 function getResult(payload) {
   if (payload.error) {
     // @TODO: not any
@@ -22395,26 +25547,35 @@ function getResult(payload) {
     error.data = payload.error.data;
     throw error;
   }
+
   return payload.result;
 }
+
 function getLowerCase(value) {
   if (value) {
     return value.toLowerCase();
   }
+
   return value;
 }
+
 const _constructorGuard = {};
+
 class JsonRpcSigner extends _abstractSigner.Signer {
   constructor(constructorGuard, provider, addressOrIndex) {
     logger.checkNew(new.target, JsonRpcSigner);
     super();
+
     if (constructorGuard !== _constructorGuard) {
       throw new Error("do not call the JsonRpcSigner constructor directly; use provider.getSigner");
     }
+
     (0, _properties.defineReadOnly)(this, "provider", provider);
+
     if (addressOrIndex == null) {
       addressOrIndex = 0;
     }
+
     if (typeof addressOrIndex === "string") {
       (0, _properties.defineReadOnly)(this, "_address", this.provider.formatter.address(addressOrIndex));
       (0, _properties.defineReadOnly)(this, "_index", null);
@@ -22425,55 +25586,67 @@ class JsonRpcSigner extends _abstractSigner.Signer {
       logger.throwArgumentError("invalid address or index", "addressOrIndex", addressOrIndex);
     }
   }
+
   connect(provider) {
     return logger.throwError("cannot alter JSON-RPC Signer connection", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
       operation: "connect"
     });
   }
+
   connectUnchecked() {
     return new UncheckedJsonRpcSigner(_constructorGuard, this.provider, this._address || this._index);
   }
+
   getAddress() {
     if (this._address) {
       return Promise.resolve(this._address);
     }
+
     return this.provider.send("eth_accounts", []).then(accounts => {
       if (accounts.length <= this._index) {
         logger.throwError("unknown account #" + this._index, _logger.Logger.errors.UNSUPPORTED_OPERATION, {
           operation: "getAddress"
         });
       }
+
       return this.provider.formatter.address(accounts[this._index]);
     });
   }
+
   sendUncheckedTransaction(transaction) {
     transaction = (0, _properties.shallowCopy)(transaction);
     const fromAddress = this.getAddress().then(address => {
       if (address) {
         address = address.toLowerCase();
       }
+
       return address;
-    });
-    // The JSON-RPC for eth_sendTransaction uses 90000 gas; if the user
+    }); // The JSON-RPC for eth_sendTransaction uses 90000 gas; if the user
     // wishes to use this, it is easy to specify explicitly, otherwise
     // we look it up for them.
+
     if (transaction.gasLimit == null) {
       const estimate = (0, _properties.shallowCopy)(transaction);
       estimate.from = fromAddress;
       transaction.gasLimit = this.provider.estimateGas(estimate);
     }
+
     if (transaction.to != null) {
       transaction.to = Promise.resolve(transaction.to).then(to => __awaiter(this, void 0, void 0, function* () {
         if (to == null) {
           return null;
         }
+
         const address = yield this.provider.resolveName(to);
+
         if (address == null) {
           logger.throwArgumentError("provided ENS name resolves to null", "tx.to", to);
         }
+
         return address;
       }));
     }
+
     return (0, _properties.resolveProperties)({
       tx: (0, _properties.resolveProperties)(transaction),
       sender: fromAddress
@@ -22488,6 +25661,7 @@ class JsonRpcSigner extends _abstractSigner.Signer {
       } else {
         tx.from = sender;
       }
+
       const hexTx = this.provider.constructor.hexlifyTransaction(tx, {
         from: true
       });
@@ -22498,26 +25672,31 @@ class JsonRpcSigner extends _abstractSigner.Signer {
       });
     });
   }
+
   signTransaction(transaction) {
     return logger.throwError("signing transactions is unsupported", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
       operation: "signTransaction"
     });
   }
+
   sendTransaction(transaction) {
     return __awaiter(this, void 0, void 0, function* () {
       // This cannot be mined any earlier than any recent block
-      const blockNumber = yield this.provider._getInternalBlockNumber(100 + 2 * this.provider.pollingInterval);
-      // Send the transaction
+      const blockNumber = yield this.provider._getInternalBlockNumber(100 + 2 * this.provider.pollingInterval); // Send the transaction
+
       const hash = yield this.sendUncheckedTransaction(transaction);
+
       try {
         // Unfortunately, JSON-RPC only provides and opaque transaction hash
         // for a response, and we need the actual transaction, so we poll
         // for it; it should show up very quickly
         return yield (0, _web.poll)(() => __awaiter(this, void 0, void 0, function* () {
           const tx = yield this.provider.getTransaction(hash);
+
           if (tx === null) {
             return undefined;
           }
+
           return this.provider._wrapTransaction(tx, hash, blockNumber);
         }), {
           oncePoll: this.provider
@@ -22528,6 +25707,7 @@ class JsonRpcSigner extends _abstractSigner.Signer {
       }
     });
   }
+
   signMessage(message) {
     return __awaiter(this, void 0, void 0, function* () {
       const data = typeof message === "string" ? (0, _strings.toUtf8Bytes)(message) : message;
@@ -22535,14 +25715,16 @@ class JsonRpcSigner extends _abstractSigner.Signer {
       return yield this.provider.send("personal_sign", [(0, _bytes.hexlify)(data), address.toLowerCase()]);
     });
   }
+
   _legacySignMessage(message) {
     return __awaiter(this, void 0, void 0, function* () {
       const data = typeof message === "string" ? (0, _strings.toUtf8Bytes)(message) : message;
-      const address = yield this.getAddress();
-      // https://github.com/ethereum/wiki/wiki/JSON-RPC#eth_sign
+      const address = yield this.getAddress(); // https://github.com/ethereum/wiki/wiki/JSON-RPC#eth_sign
+
       return yield this.provider.send("eth_sign", [address.toLowerCase(), (0, _bytes.hexlify)(data)]);
     });
   }
+
   _signTypedData(domain, types, value) {
     return __awaiter(this, void 0, void 0, function* () {
       // Populate any ENS names (in-place)
@@ -22553,6 +25735,7 @@ class JsonRpcSigner extends _abstractSigner.Signer {
       return yield this.provider.send("eth_signTypedData_v4", [address.toLowerCase(), JSON.stringify(_hash._TypedDataEncoder.getPayload(populated.domain, types, populated.value))]);
     });
   }
+
   unlock(password) {
     return __awaiter(this, void 0, void 0, function* () {
       const provider = this.provider;
@@ -22560,8 +25743,11 @@ class JsonRpcSigner extends _abstractSigner.Signer {
       return provider.send("personal_unlockAccount", [address.toLowerCase(), password, null]);
     });
   }
+
 }
+
 exports.JsonRpcSigner = JsonRpcSigner;
+
 class UncheckedJsonRpcSigner extends JsonRpcSigner {
   sendTransaction(transaction) {
     return this.sendUncheckedTransaction(transaction).then(hash => {
@@ -22581,7 +25767,9 @@ class UncheckedJsonRpcSigner extends JsonRpcSigner {
       };
     });
   }
+
 }
+
 const allowedTransactionKeys = {
   chainId: true,
   data: true,
@@ -22595,11 +25783,12 @@ const allowedTransactionKeys = {
   maxFeePerGas: true,
   maxPriorityFeePerGas: true
 };
+
 class JsonRpcProvider extends _baseProvider.BaseProvider {
   constructor(url, network) {
     logger.checkNew(new.target, JsonRpcProvider);
-    let networkOrReady = network;
-    // The network is unknown, query the JSON-RPC for it
+    let networkOrReady = network; // The network is unknown, query the JSON-RPC for it
+
     if (networkOrReady == null) {
       networkOrReady = new Promise((resolve, reject) => {
         setTimeout(() => {
@@ -22611,11 +25800,13 @@ class JsonRpcProvider extends _baseProvider.BaseProvider {
         }, 0);
       });
     }
-    super(networkOrReady);
-    // Default URL
+
+    super(networkOrReady); // Default URL
+
     if (!url) {
       url = (0, _properties.getStatic)(this.constructor, "defaultUrl")();
     }
+
     if (typeof url === "string") {
       (0, _properties.defineReadOnly)(this, "connection", Object.freeze({
         url: url
@@ -22623,31 +25814,39 @@ class JsonRpcProvider extends _baseProvider.BaseProvider {
     } else {
       (0, _properties.defineReadOnly)(this, "connection", Object.freeze((0, _properties.shallowCopy)(url)));
     }
+
     this._nextId = 42;
   }
+
   get _cache() {
     if (this._eventLoopCache == null) {
       this._eventLoopCache = {};
     }
+
     return this._eventLoopCache;
   }
+
   static defaultUrl() {
     return "http:/\/localhost:8545";
   }
+
   detectNetwork() {
     if (!this._cache["detectNetwork"]) {
-      this._cache["detectNetwork"] = this._uncachedDetectNetwork();
-      // Clear this cache at the beginning of the next event loop
+      this._cache["detectNetwork"] = this._uncachedDetectNetwork(); // Clear this cache at the beginning of the next event loop
+
       setTimeout(() => {
         this._cache["detectNetwork"] = null;
       }, 0);
     }
+
     return this._cache["detectNetwork"];
   }
+
   _uncachedDetectNetwork() {
     return __awaiter(this, void 0, void 0, function* () {
       yield timer(0);
       let chainId = null;
+
       try {
         chainId = yield this.send("eth_chainId", []);
       } catch (error) {
@@ -22655,8 +25854,10 @@ class JsonRpcProvider extends _baseProvider.BaseProvider {
           chainId = yield this.send("net_version", []);
         } catch (error) {}
       }
+
       if (chainId != null) {
         const getNetwork = (0, _properties.getStatic)(this.constructor, "getNetwork");
+
         try {
           return getNetwork(_bignumber.BigNumber.from(chainId).toNumber());
         } catch (error) {
@@ -22667,22 +25868,27 @@ class JsonRpcProvider extends _baseProvider.BaseProvider {
           });
         }
       }
+
       return logger.throwError("could not detect network", _logger.Logger.errors.NETWORK_ERROR, {
         event: "noNetwork"
       });
     });
   }
+
   getSigner(addressOrIndex) {
     return new JsonRpcSigner(_constructorGuard, this, addressOrIndex);
   }
+
   getUncheckedSigner(addressOrIndex) {
     return this.getSigner(addressOrIndex).connectUnchecked();
   }
+
   listAccounts() {
     return this.send("eth_accounts", []).then(accounts => {
       return accounts.map(a => this.formatter.address(a));
     });
   }
+
   send(method, params) {
     const request = {
       method: method,
@@ -22694,13 +25900,15 @@ class JsonRpcProvider extends _baseProvider.BaseProvider {
       action: "request",
       request: (0, _properties.deepCopy)(request),
       provider: this
-    });
-    // We can expand this in the future to any call, but for now these
+    }); // We can expand this in the future to any call, but for now these
     // are the biggest wins and do not require any serializing parameters.
+
     const cache = ["eth_chainId", "eth_blockNumber"].indexOf(method) >= 0;
+
     if (cache && this._cache[method]) {
       return this._cache[method];
     }
+
     const result = (0, _web.fetchJson)(this.connection, JSON.stringify(request), getResult).then(result => {
       this.emit("debug", {
         action: "response",
@@ -22717,43 +25925,56 @@ class JsonRpcProvider extends _baseProvider.BaseProvider {
         provider: this
       });
       throw error;
-    });
-    // Cache the fetch, but clear it on the next event loop
+    }); // Cache the fetch, but clear it on the next event loop
+
     if (cache) {
       this._cache[method] = result;
       setTimeout(() => {
         this._cache[method] = null;
       }, 0);
     }
+
     return result;
   }
+
   prepareRequest(method, params) {
     switch (method) {
       case "getBlockNumber":
         return ["eth_blockNumber", []];
+
       case "getGasPrice":
         return ["eth_gasPrice", []];
+
       case "getBalance":
         return ["eth_getBalance", [getLowerCase(params.address), params.blockTag]];
+
       case "getTransactionCount":
         return ["eth_getTransactionCount", [getLowerCase(params.address), params.blockTag]];
+
       case "getCode":
         return ["eth_getCode", [getLowerCase(params.address), params.blockTag]];
+
       case "getStorageAt":
         return ["eth_getStorageAt", [getLowerCase(params.address), params.position, params.blockTag]];
+
       case "sendTransaction":
         return ["eth_sendRawTransaction", [params.signedTransaction]];
+
       case "getBlock":
         if (params.blockTag) {
           return ["eth_getBlockByNumber", [params.blockTag, !!params.includeTransactions]];
         } else if (params.blockHash) {
           return ["eth_getBlockByHash", [params.blockHash, !!params.includeTransactions]];
         }
+
         return null;
+
       case "getTransaction":
         return ["eth_getTransactionByHash", [params.transactionHash]];
+
       case "getTransactionReceipt":
         return ["eth_getTransactionReceipt", [params.transactionHash]];
+
       case "call":
         {
           const hexlifyTransaction = (0, _properties.getStatic)(this.constructor, "hexlifyTransaction");
@@ -22761,6 +25982,7 @@ class JsonRpcProvider extends _baseProvider.BaseProvider {
             from: true
           }), params.blockTag]];
         }
+
       case "estimateGas":
         {
           const hexlifyTransaction = (0, _properties.getStatic)(this.constructor, "hexlifyTransaction");
@@ -22768,26 +25990,33 @@ class JsonRpcProvider extends _baseProvider.BaseProvider {
             from: true
           })]];
         }
+
       case "getLogs":
         if (params.filter && params.filter.address != null) {
           params.filter.address = getLowerCase(params.filter.address);
         }
+
         return ["eth_getLogs", [params.filter]];
+
       default:
         break;
     }
+
     return null;
   }
+
   perform(method, params) {
     return __awaiter(this, void 0, void 0, function* () {
       // Legacy networks do not like the type field being passed along (which
       // is fair), so we delete type if it is 0 and a non-EIP-1559 network
       if (method === "call" || method === "estimateGas") {
         const tx = params.transaction;
+
         if (tx && tx.type != null && _bignumber.BigNumber.from(tx.type).isZero()) {
           // If there are no EIP-1559 properties, it might be non-EIP-a559
           if (tx.maxFeePerGas == null && tx.maxPriorityFeePerGas == null) {
             const feeData = yield this.getFeeData();
+
             if (feeData.maxFeePerGas == null && feeData.maxPriorityFeePerGas == null) {
               // Network doesn't know about EIP-1559 (and hence type)
               params = (0, _properties.shallowCopy)(params);
@@ -22797,12 +26026,15 @@ class JsonRpcProvider extends _baseProvider.BaseProvider {
           }
         }
       }
+
       const args = this.prepareRequest(method, params);
+
       if (args == null) {
         logger.throwError(method + " not implemented", _logger.Logger.errors.NOT_IMPLEMENTED, {
           operation: method
         });
       }
+
       try {
         return yield this.send(args[0], args[1]);
       } catch (error) {
@@ -22810,16 +26042,20 @@ class JsonRpcProvider extends _baseProvider.BaseProvider {
       }
     });
   }
+
   _startEvent(event) {
     if (event.tag === "pending") {
       this._startPending();
     }
+
     super._startEvent(event);
   }
+
   _startPending() {
     if (this._pendingFilter != null) {
       return;
     }
+
     const self = this;
     const pendingFilter = this.send("eth_newPendingTransactionFilter", []);
     this._pendingFilter = pendingFilter;
@@ -22829,6 +26065,7 @@ class JsonRpcProvider extends _baseProvider.BaseProvider {
           if (self._pendingFilter != pendingFilter) {
             return null;
           }
+
           let seq = Promise.resolve();
           hashes.forEach(function (hash) {
             // @TODO: This should be garbage collected at some point... How? When?
@@ -22848,23 +26085,26 @@ class JsonRpcProvider extends _baseProvider.BaseProvider {
             self.send("eth_uninstallFilter", [filterId]);
             return;
           }
+
           setTimeout(function () {
             poll();
           }, 0);
           return null;
         }).catch(error => {});
       }
+
       poll();
       return filterId;
     }).catch(error => {});
   }
+
   _stopEvent(event) {
     if (event.tag === "pending" && this.listenerCount("pending") === 0) {
       this._pendingFilter = null;
     }
+
     super._stopEvent(event);
-  }
-  // Convert an ethers.js transaction into a JSON-RPC transaction
+  } // Convert an ethers.js transaction into a JSON-RPC transaction
   //  - gasLimit => gas
   //  - All values hexlified
   //  - All numeric values zero-striped
@@ -22873,9 +26113,12 @@ class JsonRpcProvider extends _baseProvider.BaseProvider {
   //       before this is called
   // @TODO: This will likely be removed in future versions and prepareRequest
   //        will be the preferred method for this.
+
+
   static hexlifyTransaction(transaction, allowExtra) {
     // Check only allowed properties are given
     const allowed = (0, _properties.shallowCopy)(allowedTransactionKeys);
+
     if (allowExtra) {
       for (const key in allowExtra) {
         if (allowExtra[key]) {
@@ -22883,31 +26126,40 @@ class JsonRpcProvider extends _baseProvider.BaseProvider {
         }
       }
     }
+
     (0, _properties.checkProperties)(transaction, allowed);
-    const result = {};
-    // Some nodes (INFURA ropsten; INFURA mainnet is fine) do not like leading zeros.
+    const result = {}; // Some nodes (INFURA ropsten; INFURA mainnet is fine) do not like leading zeros.
+
     ["gasLimit", "gasPrice", "type", "maxFeePerGas", "maxPriorityFeePerGas", "nonce", "value"].forEach(function (key) {
       if (transaction[key] == null) {
         return;
       }
+
       const value = (0, _bytes.hexValue)(transaction[key]);
+
       if (key === "gasLimit") {
         key = "gas";
       }
+
       result[key] = value;
     });
     ["from", "to", "data"].forEach(function (key) {
       if (transaction[key] == null) {
         return;
       }
+
       result[key] = (0, _bytes.hexlify)(transaction[key]);
     });
+
     if (transaction.accessList) {
       result["accessList"] = (0, _transactions.accessListify)(transaction.accessList);
     }
+
     return result;
   }
+
 }
+
 exports.JsonRpcProvider = JsonRpcProvider;
 },{"@ethersproject/abstract-signer":"l8eZ","@ethersproject/bignumber":"efJK","@ethersproject/bytes":"aqkS","@ethersproject/hash":"eHxR","@ethersproject/properties":"JuuX","@ethersproject/strings":"ZW9k","@ethersproject/transactions":"OW34","@ethersproject/web":"egXK","@ethersproject/logger":"kMNH","./_version":"UhEn","./base-provider":"SPLd"}],"tyH4":[function(require,module,exports) {
 "use strict";
@@ -22916,24 +26168,29 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.WebSocket = void 0;
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 let WS = null;
 exports.WebSocket = WS;
+
 try {
   exports.WebSocket = WS = WebSocket;
+
   if (WS == null) {
     throw new Error("inject please");
   }
 } catch (error) {
   const logger = new _logger.Logger(_version.version);
+
   exports.WebSocket = WS = function () {
     logger.throwError("WebSockets not supported in this environment", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
       operation: "new WebSocket()"
     });
   };
-}
-//export default WS;
+} //export default WS;
 //module.exports = WS;
 },{"@ethersproject/logger":"kMNH","./_version":"UhEn"}],"lCOP":[function(require,module,exports) {
 "use strict";
@@ -22942,18 +26199,26 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.WebSocketProvider = void 0;
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _properties = require("@ethersproject/properties");
+
 var _jsonRpcProvider = require("./json-rpc-provider");
+
 var _ws = require("./ws");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -22962,6 +26227,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -22969,12 +26235,15 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 const logger = new _logger.Logger(_version.version);
 /**
  *  Notes:
@@ -22990,9 +26259,10 @@ const logger = new _logger.Logger(_version.version);
  *  can occur when querying a pool of nodes that are mildly out of sync
  *  with each other.
  */
-let NextId = 1;
-// For more info about the Real-time Event API see:
+
+let NextId = 1; // For more info about the Real-time Event API see:
 //   https://geth.ethereum.org/docs/rpc/pubsub
+
 class WebSocketProvider extends _jsonRpcProvider.JsonRpcProvider {
   constructor(url, network) {
     // This will be added in the future; please open an issue to expedite
@@ -23001,6 +26271,7 @@ class WebSocketProvider extends _jsonRpcProvider.JsonRpcProvider {
         operation: "network:any"
       });
     }
+
     super(url, network);
     this._pollingInterval = -1;
     this._wsReady = false;
@@ -23008,21 +26279,24 @@ class WebSocketProvider extends _jsonRpcProvider.JsonRpcProvider {
     (0, _properties.defineReadOnly)(this, "_requests", {});
     (0, _properties.defineReadOnly)(this, "_subs", {});
     (0, _properties.defineReadOnly)(this, "_subIds", {});
-    (0, _properties.defineReadOnly)(this, "_detectNetwork", super.detectNetwork());
-    // Stall sending requests until the socket is open...
+    (0, _properties.defineReadOnly)(this, "_detectNetwork", super.detectNetwork()); // Stall sending requests until the socket is open...
+
     this._websocket.onopen = () => {
       this._wsReady = true;
       Object.keys(this._requests).forEach(id => {
         this._websocket.send(this._requests[id].payload);
       });
     };
+
     this._websocket.onmessage = messageEvent => {
       const data = messageEvent.data;
       const result = JSON.parse(data);
+
       if (result.id != null) {
         const id = String(result.id);
         const request = this._requests[id];
         delete this._requests[id];
+
         if (result.result !== undefined) {
           request.callback(null, result.result);
           this.emit("debug", {
@@ -23033,6 +26307,7 @@ class WebSocketProvider extends _jsonRpcProvider.JsonRpcProvider {
           });
         } else {
           let error = null;
+
           if (result.error) {
             error = new Error(result.error.message || "unknown error");
             (0, _properties.defineReadOnly)(error, "code", result.error.code || null);
@@ -23040,6 +26315,7 @@ class WebSocketProvider extends _jsonRpcProvider.JsonRpcProvider {
           } else {
             error = new Error("unknown error");
           }
+
           request.callback(error, undefined);
           this.emit("debug", {
             action: "response",
@@ -23051,6 +26327,7 @@ class WebSocketProvider extends _jsonRpcProvider.JsonRpcProvider {
       } else if (result.method === "eth_subscription") {
         // Subscription...
         const sub = this._subs[result.params.subscription];
+
         if (sub) {
           //this.emit.apply(this,                  );
           sub.processFunc(result.params.result);
@@ -23058,46 +26335,56 @@ class WebSocketProvider extends _jsonRpcProvider.JsonRpcProvider {
       } else {
         console.warn("this should not happen");
       }
-    };
-    // This Provider does not actually poll, but we want to trigger
+    }; // This Provider does not actually poll, but we want to trigger
     // poll events for things that depend on them (like stalling for
     // block and transaction lookups)
+
+
     const fauxPoll = setInterval(() => {
       this.emit("poll");
     }, 1000);
+
     if (fauxPoll.unref) {
       fauxPoll.unref();
     }
   }
+
   detectNetwork() {
     return this._detectNetwork;
   }
+
   get pollingInterval() {
     return 0;
   }
+
   resetEventsBlock(blockNumber) {
     logger.throwError("cannot reset events block on WebSocketProvider", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
       operation: "resetEventBlock"
     });
   }
+
   set pollingInterval(value) {
     logger.throwError("cannot set polling interval on WebSocketProvider", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
       operation: "setPollingInterval"
     });
   }
+
   poll() {
     return __awaiter(this, void 0, void 0, function* () {
       return null;
     });
   }
+
   set polling(value) {
     if (!value) {
       return;
     }
+
     logger.throwError("cannot set polling on WebSocketProvider", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
       operation: "setPolling"
     });
   }
+
   send(method, params) {
     const rid = NextId++;
     return new Promise((resolve, reject) => {
@@ -23105,8 +26392,10 @@ class WebSocketProvider extends _jsonRpcProvider.JsonRpcProvider {
         if (error) {
           return reject(error);
         }
+
         return resolve(result);
       }
+
       const payload = JSON.stringify({
         method: method,
         params: params,
@@ -23122,23 +26411,28 @@ class WebSocketProvider extends _jsonRpcProvider.JsonRpcProvider {
         callback,
         payload
       };
+
       if (this._wsReady) {
         this._websocket.send(payload);
       }
     });
   }
+
   static defaultUrl() {
     return "ws:/\/localhost:8546";
   }
+
   _subscribe(tag, param, processFunc) {
     return __awaiter(this, void 0, void 0, function* () {
       let subIdPromise = this._subIds[tag];
+
       if (subIdPromise == null) {
         subIdPromise = Promise.all(param).then(param => {
           return this.send("eth_subscribe", param);
         });
         this._subIds[tag] = subIdPromise;
       }
+
       const subId = yield subIdPromise;
       this._subs[subId] = {
         tag,
@@ -23146,28 +26440,37 @@ class WebSocketProvider extends _jsonRpcProvider.JsonRpcProvider {
       };
     });
   }
+
   _startEvent(event) {
     switch (event.type) {
       case "block":
         this._subscribe("block", ["newHeads"], result => {
           const blockNumber = _bignumber.BigNumber.from(result.number).toNumber();
+
           this._emitted.block = blockNumber;
           this.emit("block", blockNumber);
         });
+
         break;
+
       case "pending":
         this._subscribe("pending", ["newPendingTransactions"], result => {
           this.emit("pending", result);
         });
+
         break;
+
       case "filter":
         this._subscribe(event.tag, ["logs", this._getFilter(event.filter)], result => {
           if (result.removed == null) {
             result.removed = false;
           }
+
           this.emit(event.filter, this.formatter.filterLog(result));
         });
+
         break;
+
       case "tx":
         {
           const emitReceipt = event => {
@@ -23176,57 +26479,70 @@ class WebSocketProvider extends _jsonRpcProvider.JsonRpcProvider {
               if (!receipt) {
                 return;
               }
+
               this.emit(hash, receipt);
             });
-          };
-          // In case it is already mined
-          emitReceipt(event);
-          // To keep things simple, we start up a single newHeads subscription
+          }; // In case it is already mined
+
+
+          emitReceipt(event); // To keep things simple, we start up a single newHeads subscription
           // to keep an eye out for transactions we are watching for.
           // Starting a subscription for an event (i.e. "tx") that is already
           // running is (basically) a nop.
+
           this._subscribe("tx", ["newHeads"], result => {
             this._events.filter(e => e.type === "tx").forEach(emitReceipt);
           });
+
           break;
         }
       // Nothing is needed
+
       case "debug":
       case "poll":
       case "willPoll":
       case "didPoll":
       case "error":
         break;
+
       default:
         console.log("unhandled:", event);
         break;
     }
   }
+
   _stopEvent(event) {
     let tag = event.tag;
+
     if (event.type === "tx") {
       // There are remaining transaction event listeners
       if (this._events.filter(e => e.type === "tx").length) {
         return;
       }
+
       tag = "tx";
     } else if (this.listenerCount(event.event)) {
       // There are remaining event listeners
       return;
     }
+
     const subId = this._subIds[tag];
+
     if (!subId) {
       return;
     }
+
     delete this._subIds[tag];
     subId.then(subId => {
       if (!this._subs[subId]) {
         return;
       }
+
       delete this._subs[subId];
       this.send("eth_unsubscribe", [subId]);
     });
   }
+
   destroy() {
     return __awaiter(this, void 0, void 0, function* () {
       // Wait until we have connected before trying to disconnect
@@ -23235,17 +26551,21 @@ class WebSocketProvider extends _jsonRpcProvider.JsonRpcProvider {
           this._websocket.onopen = function () {
             resolve(true);
           };
+
           this._websocket.onerror = function () {
             resolve(false);
           };
         });
-      }
-      // Hangup
+      } // Hangup
       // See: https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent#Status_codes
+
+
       this._websocket.close(1000);
     });
   }
+
 }
+
 exports.WebSocketProvider = WebSocketProvider;
 },{"@ethersproject/bignumber":"efJK","@ethersproject/properties":"JuuX","./json-rpc-provider":"HkBu","./ws":"tyH4","@ethersproject/logger":"kMNH","./_version":"UhEn"}],"JsTC":[function(require,module,exports) {
 "use strict";
@@ -23254,16 +26574,22 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.UrlJsonRpcProvider = exports.StaticJsonRpcProvider = void 0;
+
 var _properties = require("@ethersproject/properties");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var _jsonRpcProvider = require("./json-rpc-provider");
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -23272,6 +26598,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -23279,13 +26606,17 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 const logger = new _logger.Logger(_version.version);
+
 // A StaticJsonRpcProvider is useful when you *know* for certain that
 // the backend will never change, as it never calls eth_chainId to
 // verify its backend. However, if the backend does change, the effects
@@ -23304,33 +26635,42 @@ class StaticJsonRpcProvider extends _jsonRpcProvider.JsonRpcProvider {
         get: () => super.detectNetwork
       }
     });
+
     return __awaiter(this, void 0, void 0, function* () {
       let network = this.network;
+
       if (network == null) {
         network = yield _super.detectNetwork.call(this);
+
         if (!network) {
           logger.throwError("no network detected", _logger.Logger.errors.UNKNOWN_ERROR, {});
-        }
-        // If still not set, set it
+        } // If still not set, set it
+
+
         if (this._network == null) {
           // A static network does not support "any"
           (0, _properties.defineReadOnly)(this, "_network", network);
           this.emit("network", network, null);
         }
       }
+
       return network;
     });
   }
+
 }
+
 exports.StaticJsonRpcProvider = StaticJsonRpcProvider;
+
 class UrlJsonRpcProvider extends StaticJsonRpcProvider {
   constructor(network, apiKey) {
-    logger.checkAbstract(new.target, UrlJsonRpcProvider);
-    // Normalize the Network and API Key
+    logger.checkAbstract(new.target, UrlJsonRpcProvider); // Normalize the Network and API Key
+
     network = (0, _properties.getStatic)(new.target, "getNetwork")(network);
     apiKey = (0, _properties.getStatic)(new.target, "getApiKey")(apiKey);
     const connection = (0, _properties.getStatic)(new.target, "getUrl")(network, apiKey);
     super(connection, network);
+
     if (typeof apiKey === "string") {
       (0, _properties.defineReadOnly)(this, "apiKey", apiKey);
     } else if (apiKey != null) {
@@ -23339,33 +26679,41 @@ class UrlJsonRpcProvider extends StaticJsonRpcProvider {
       });
     }
   }
+
   _startPending() {
     logger.warn("WARNING: API provider does not support pending filters");
   }
+
   isCommunityResource() {
     return false;
   }
+
   getSigner(address) {
     return logger.throwError("API provider does not support signing", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
       operation: "getSigner"
     });
   }
+
   listAccounts() {
     return Promise.resolve([]);
-  }
-  // Return a defaultApiKey if null, otherwise validate the API key
+  } // Return a defaultApiKey if null, otherwise validate the API key
+
+
   static getApiKey(apiKey) {
     return apiKey;
-  }
-  // Returns the url or connection for the given network and API key. The
+  } // Returns the url or connection for the given network and API key. The
   // API key will have been sanitized by the getApiKey first, so any validation
   // or transformations can be done there.
+
+
   static getUrl(network, apiKey) {
     return logger.throwError("not implemented; sub-classes must override getUrl", _logger.Logger.errors.NOT_IMPLEMENTED, {
       operation: "getUrl"
     });
   }
+
 }
+
 exports.UrlJsonRpcProvider = UrlJsonRpcProvider;
 },{"@ethersproject/properties":"JuuX","@ethersproject/logger":"kMNH","./_version":"UhEn","./json-rpc-provider":"HkBu"}],"Lc7y":[function(require,module,exports) {
 "use strict";
@@ -23374,18 +26722,26 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.AlchemyWebSocketProvider = exports.AlchemyProvider = void 0;
+
 var _properties = require("@ethersproject/properties");
+
 var _formatter = require("./formatter");
+
 var _websocketProvider = require("./websocket-provider");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var _urlJsonRpcProvider = require("./url-json-rpc-provider");
+
 const logger = new _logger.Logger(_version.version);
 // This key was provided to ethers.js by Alchemy to be used by the
 // default provider, but it is recommended that for your own
 // production environments, that you acquire your own API key at:
 //   https://dashboard.alchemyapi.io
 const defaultApiKey = "_gg7wSSi0KMBsdKnGVfHDueq6xMB9EkC";
+
 class AlchemyWebSocketProvider extends _websocketProvider.WebSocketProvider {
   constructor(network, apiKey) {
     const provider = new AlchemyProvider(network, apiKey);
@@ -23393,51 +26749,68 @@ class AlchemyWebSocketProvider extends _websocketProvider.WebSocketProvider {
     super(url, provider.network);
     (0, _properties.defineReadOnly)(this, "apiKey", provider.apiKey);
   }
+
   isCommunityResource() {
     return this.apiKey === defaultApiKey;
   }
+
 }
+
 exports.AlchemyWebSocketProvider = AlchemyWebSocketProvider;
+
 class AlchemyProvider extends _urlJsonRpcProvider.UrlJsonRpcProvider {
   static getWebSocketProvider(network, apiKey) {
     return new AlchemyWebSocketProvider(network, apiKey);
   }
+
   static getApiKey(apiKey) {
     if (apiKey == null) {
       return defaultApiKey;
     }
+
     if (apiKey && typeof apiKey !== "string") {
       logger.throwArgumentError("invalid apiKey", "apiKey", apiKey);
     }
+
     return apiKey;
   }
+
   static getUrl(network, apiKey) {
     let host = null;
+
     switch (network.name) {
       case "homestead":
         host = "eth-mainnet.alchemyapi.io/v2/";
         break;
+
       case "ropsten":
         host = "eth-ropsten.alchemyapi.io/v2/";
         break;
+
       case "rinkeby":
         host = "eth-rinkeby.alchemyapi.io/v2/";
         break;
+
       case "goerli":
         host = "eth-goerli.alchemyapi.io/v2/";
         break;
+
       case "kovan":
         host = "eth-kovan.alchemyapi.io/v2/";
         break;
+
       case "matic":
         host = "polygon-mainnet.g.alchemy.com/v2/";
         break;
+
       case "maticmum":
         host = "polygon-mumbai.g.alchemy.com/v2/";
         break;
+
       default:
         logger.throwArgumentError("unsupported network", "network", arguments[0]);
     }
+
     return {
       allowGzip: true,
       url: "https:/" + "/" + host + apiKey,
@@ -23445,14 +26818,18 @@ class AlchemyProvider extends _urlJsonRpcProvider.UrlJsonRpcProvider {
         if (apiKey === defaultApiKey) {
           (0, _formatter.showThrottleMessage)();
         }
+
         return Promise.resolve(true);
       }
     };
   }
+
   isCommunityResource() {
     return this.apiKey === defaultApiKey;
   }
+
 }
+
 exports.AlchemyProvider = AlchemyProvider;
 },{"@ethersproject/properties":"JuuX","./formatter":"nnuj","./websocket-provider":"lCOP","@ethersproject/logger":"kMNH","./_version":"UhEn","./url-json-rpc-provider":"JsTC"}],"VQyX":[function(require,module,exports) {
 "use strict";
@@ -23461,15 +26838,20 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.CloudflareProvider = void 0;
+
 var _urlJsonRpcProvider = require("./url-json-rpc-provider");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -23478,6 +26860,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -23485,37 +26868,48 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 const logger = new _logger.Logger(_version.version);
+
 class CloudflareProvider extends _urlJsonRpcProvider.UrlJsonRpcProvider {
   static getApiKey(apiKey) {
     if (apiKey != null) {
       logger.throwArgumentError("apiKey not supported for cloudflare", "apiKey", apiKey);
     }
+
     return null;
   }
+
   static getUrl(network, apiKey) {
     let host = null;
+
     switch (network.name) {
       case "homestead":
         host = "https://cloudflare-eth.com/";
         break;
+
       default:
         logger.throwArgumentError("unsupported network", "network", arguments[0]);
     }
+
     return host;
   }
+
   perform(method, params) {
     const _super = Object.create(null, {
       perform: {
         get: () => super.perform
       }
     });
+
     return __awaiter(this, void 0, void 0, function* () {
       // The Cloudflare provider does not support eth_blockNumber,
       // so we get the latest block and pull it from that
@@ -23525,10 +26919,13 @@ class CloudflareProvider extends _urlJsonRpcProvider.UrlJsonRpcProvider {
         });
         return block.number;
       }
+
       return _super.perform.call(this, method, params);
     });
   }
+
 }
+
 exports.CloudflareProvider = CloudflareProvider;
 },{"./url-json-rpc-provider":"JsTC","@ethersproject/logger":"kMNH","./_version":"UhEn"}],"U5hR":[function(require,module,exports) {
 "use strict";
@@ -23537,20 +26934,30 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.EtherscanProvider = void 0;
+
 var _bytes = require("@ethersproject/bytes");
+
 var _properties = require("@ethersproject/properties");
+
 var _transactions = require("@ethersproject/transactions");
+
 var _web = require("@ethersproject/web");
+
 var _formatter = require("./formatter");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var _baseProvider = require("./base-provider");
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -23559,6 +26966,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -23566,25 +26974,33 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 const logger = new _logger.Logger(_version.version);
+
 // The transaction has already been sanitized by the calls in Provider
 function getTransactionPostData(transaction) {
   const result = {};
+
   for (let key in transaction) {
     if (transaction[key] == null) {
       continue;
     }
+
     let value = transaction[key];
+
     if (key === "type" && value === 0) {
       continue;
-    }
-    // Quantity-types require no leading zero, unless 0
+    } // Quantity-types require no leading zero, unless 0
+
+
     if ({
       type: true,
       gasLimit: true,
@@ -23602,25 +27018,33 @@ function getTransactionPostData(transaction) {
     } else {
       value = (0, _bytes.hexlify)(value);
     }
+
     result[key] = value;
   }
+
   return result;
 }
+
 function getResult(result) {
   // getLogs, getHistory have weird success responses
   if (result.status == 0 && (result.message === "No records found" || result.message === "No transactions found")) {
     return result.result;
   }
+
   if (result.status != 1 || result.message != "OK") {
     const error = new Error("invalid response");
     error.result = JSON.stringify(result);
+
     if ((result.result || "").toLowerCase().indexOf("rate limit") >= 0) {
       error.throttleRetry = true;
     }
+
     throw error;
   }
+
   return result.result;
 }
+
 function getJsonResult(result) {
   // This response indicates we are being throttled
   if (result && result.status == 0 && result.message == "NOTOK" && (result.result || "").toLowerCase().indexOf("rate limit") >= 0) {
@@ -23629,59 +27053,75 @@ function getJsonResult(result) {
     error.throttleRetry = true;
     throw error;
   }
+
   if (result.jsonrpc != "2.0") {
     // @TODO: not any
     const error = new Error("invalid response");
     error.result = JSON.stringify(result);
     throw error;
   }
+
   if (result.error) {
     // @TODO: not any
     const error = new Error(result.error.message || "unknown error");
+
     if (result.error.code) {
       error.code = result.error.code;
     }
+
     if (result.error.data) {
       error.data = result.error.data;
     }
+
     throw error;
   }
+
   return result.result;
-}
-// The blockTag was normalized as a string by the Provider pre-perform operations
+} // The blockTag was normalized as a string by the Provider pre-perform operations
+
+
 function checkLogTag(blockTag) {
   if (blockTag === "pending") {
     throw new Error("pending not supported");
   }
+
   if (blockTag === "latest") {
     return blockTag;
   }
+
   return parseInt(blockTag.substring(2), 16);
 }
+
 const defaultApiKey = "9D13ZE7XSBTJ94N9BNJ2MA33VMAY2YPIRB";
+
 function checkError(method, error, transaction) {
   // Undo the "convenience" some nodes are attempting to prevent backwards
   // incompatibility; maybe for v6 consider forwarding reverts as errors
   if (method === "call" && error.code === _logger.Logger.errors.SERVER_ERROR) {
-    const e = error.error;
-    // Etherscan keeps changing their string
+    const e = error.error; // Etherscan keeps changing their string
+
     if (e && (e.message.match(/reverted/i) || e.message.match(/VM execution error/i))) {
       // Etherscan prefixes the data like "Reverted 0x1234"
       let data = e.data;
+
       if (data) {
         data = "0x" + data.replace(/^.*0x/i, "");
       }
+
       if ((0, _bytes.isHexString)(data)) {
         return data;
       }
+
       logger.throwError("missing revert data in call exception", _logger.Logger.errors.CALL_EXCEPTION, {
         error,
         data: "0x"
       });
     }
-  }
-  // Get the message from any nested error structure
+  } // Get the message from any nested error structure
+
+
   let message = error.message;
+
   if (error.code === _logger.Logger.errors.SERVER_ERROR) {
     if (error.error && typeof error.error.message === "string") {
       message = error.error.message;
@@ -23691,24 +27131,27 @@ function checkError(method, error, transaction) {
       message = error.responseText;
     }
   }
-  message = (message || "").toLowerCase();
-  // "Insufficient funds. The account you tried to send transaction from does not have enough funds. Required 21464000000000 and got: 0"
+
+  message = (message || "").toLowerCase(); // "Insufficient funds. The account you tried to send transaction from does not have enough funds. Required 21464000000000 and got: 0"
+
   if (message.match(/insufficient funds/)) {
     logger.throwError("insufficient funds for intrinsic transaction cost", _logger.Logger.errors.INSUFFICIENT_FUNDS, {
       error,
       method,
       transaction
     });
-  }
-  // "Transaction with the same hash was already imported."
+  } // "Transaction with the same hash was already imported."
+
+
   if (message.match(/same hash was already imported|transaction nonce is too low|nonce too low/)) {
     logger.throwError("nonce has already been used", _logger.Logger.errors.NONCE_EXPIRED, {
       error,
       method,
       transaction
     });
-  }
-  // "Transaction gas price is too low. There is another transaction with same nonce in the queue. Try increasing the gas price or incrementing the nonce."
+  } // "Transaction gas price is too low. There is another transaction with same nonce in the queue. Try increasing the gas price or incrementing the nonce."
+
+
   if (message.match(/another transaction with same nonce/)) {
     logger.throwError("replacement fee too low", _logger.Logger.errors.REPLACEMENT_UNDERPRICED, {
       error,
@@ -23716,6 +27159,7 @@ function checkError(method, error, transaction) {
       transaction
     });
   }
+
   if (message.match(/execution failed due to an exception|execution reverted/)) {
     logger.throwError("cannot estimate gas; transaction may fail or may require manual gas limit", _logger.Logger.errors.UNPREDICTABLE_GAS_LIMIT, {
       error,
@@ -23723,8 +27167,10 @@ function checkError(method, error, transaction) {
       transaction
     });
   }
+
   throw error;
 }
+
 class EtherscanProvider extends _baseProvider.BaseProvider {
   constructor(network, apiKey) {
     logger.checkNew(new.target, EtherscanProvider);
@@ -23732,41 +27178,54 @@ class EtherscanProvider extends _baseProvider.BaseProvider {
     (0, _properties.defineReadOnly)(this, "baseUrl", this.getBaseUrl());
     (0, _properties.defineReadOnly)(this, "apiKey", apiKey || defaultApiKey);
   }
+
   getBaseUrl() {
     switch (this.network ? this.network.name : "invalid") {
       case "homestead":
         return "https:/\/api.etherscan.io";
+
       case "ropsten":
         return "https:/\/api-ropsten.etherscan.io";
+
       case "rinkeby":
         return "https:/\/api-rinkeby.etherscan.io";
+
       case "kovan":
         return "https:/\/api-kovan.etherscan.io";
+
       case "goerli":
         return "https:/\/api-goerli.etherscan.io";
+
       default:
     }
+
     return logger.throwArgumentError("unsupported network", "network", name);
   }
+
   getUrl(module, params) {
     const query = Object.keys(params).reduce((accum, key) => {
       const value = params[key];
+
       if (value != null) {
         accum += `&${key}=${value}`;
       }
+
       return accum;
     }, "");
     const apiKey = this.apiKey ? `&apikey=${this.apiKey}` : "";
     return `${this.baseUrl}/api?module=${module}${query}${apiKey}`;
   }
+
   getPostUrl() {
     return `${this.baseUrl}/api`;
   }
+
   getPostData(module, params) {
     params.module = module;
     params.apikey = this.apiKey;
     return params;
   }
+
   fetch(module, params, post) {
     return __awaiter(this, void 0, void 0, function* () {
       const url = post ? this.getPostUrl() : this.getUrl(module, params);
@@ -23784,10 +27243,12 @@ class EtherscanProvider extends _baseProvider.BaseProvider {
           if (this.isCommunityResource()) {
             (0, _formatter.showThrottleMessage)();
           }
+
           return Promise.resolve(true);
         }
       };
       let payloadStr = null;
+
       if (payload) {
         connection.headers = {
           "content-type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -23796,6 +27257,7 @@ class EtherscanProvider extends _baseProvider.BaseProvider {
           return `${key}=${payload[key]}`;
         }).join("&");
       }
+
       const result = yield (0, _web.fetchJson)(connection, payloadStr, procFunc || getJsonResult);
       this.emit("debug", {
         action: "response",
@@ -23806,27 +27268,32 @@ class EtherscanProvider extends _baseProvider.BaseProvider {
       return result;
     });
   }
+
   detectNetwork() {
     return __awaiter(this, void 0, void 0, function* () {
       return this.network;
     });
   }
+
   perform(method, params) {
     const _super = Object.create(null, {
       perform: {
         get: () => super.perform
       }
     });
+
     return __awaiter(this, void 0, void 0, function* () {
       switch (method) {
         case "getBlockNumber":
           return this.fetch("proxy", {
             action: "eth_blockNumber"
           });
+
         case "getGasPrice":
           return this.fetch("proxy", {
             action: "eth_gasPrice"
           });
+
         case "getBalance":
           // Returns base-10 result
           return this.fetch("account", {
@@ -23834,18 +27301,21 @@ class EtherscanProvider extends _baseProvider.BaseProvider {
             address: params.address,
             tag: params.blockTag
           });
+
         case "getTransactionCount":
           return this.fetch("proxy", {
             action: "eth_getTransactionCount",
             address: params.address,
             tag: params.blockTag
           });
+
         case "getCode":
           return this.fetch("proxy", {
             action: "eth_getCode",
             address: params.address,
             tag: params.blockTag
           });
+
         case "getStorageAt":
           return this.fetch("proxy", {
             action: "eth_getStorageAt",
@@ -23853,6 +27323,7 @@ class EtherscanProvider extends _baseProvider.BaseProvider {
             position: params.position,
             tag: params.blockTag
           });
+
         case "sendTransaction":
           return this.fetch("proxy", {
             action: "eth_sendRawTransaction",
@@ -23860,6 +27331,7 @@ class EtherscanProvider extends _baseProvider.BaseProvider {
           }, true).catch(error => {
             return checkError("sendTransaction", error, params.signedTransaction);
           });
+
         case "getBlock":
           if (params.blockTag) {
             return this.fetch("proxy", {
@@ -23868,109 +27340,136 @@ class EtherscanProvider extends _baseProvider.BaseProvider {
               boolean: params.includeTransactions ? "true" : "false"
             });
           }
+
           throw new Error("getBlock by blockHash not implemented");
+
         case "getTransaction":
           return this.fetch("proxy", {
             action: "eth_getTransactionByHash",
             txhash: params.transactionHash
           });
+
         case "getTransactionReceipt":
           return this.fetch("proxy", {
             action: "eth_getTransactionReceipt",
             txhash: params.transactionHash
           });
+
         case "call":
           {
             if (params.blockTag !== "latest") {
               throw new Error("EtherscanProvider does not support blockTag for call");
             }
+
             const postData = getTransactionPostData(params.transaction);
             postData.module = "proxy";
             postData.action = "eth_call";
+
             try {
               return yield this.fetch("proxy", postData, true);
             } catch (error) {
               return checkError("call", error, params.transaction);
             }
           }
+
         case "estimateGas":
           {
             const postData = getTransactionPostData(params.transaction);
             postData.module = "proxy";
             postData.action = "eth_estimateGas";
+
             try {
               return yield this.fetch("proxy", postData, true);
             } catch (error) {
               return checkError("estimateGas", error, params.transaction);
             }
           }
+
         case "getLogs":
           {
             const args = {
               action: "getLogs"
             };
+
             if (params.filter.fromBlock) {
               args.fromBlock = checkLogTag(params.filter.fromBlock);
             }
+
             if (params.filter.toBlock) {
               args.toBlock = checkLogTag(params.filter.toBlock);
             }
+
             if (params.filter.address) {
               args.address = params.filter.address;
-            }
-            // @TODO: We can handle slightly more complicated logs using the logs API
+            } // @TODO: We can handle slightly more complicated logs using the logs API
+
+
             if (params.filter.topics && params.filter.topics.length > 0) {
               if (params.filter.topics.length > 1) {
                 logger.throwError("unsupported topic count", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
                   topics: params.filter.topics
                 });
               }
+
               if (params.filter.topics.length === 1) {
                 const topic0 = params.filter.topics[0];
+
                 if (typeof topic0 !== "string" || topic0.length !== 66) {
                   logger.throwError("unsupported topic format", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
                     topic0: topic0
                   });
                 }
+
                 args.topic0 = topic0;
               }
             }
-            const logs = yield this.fetch("logs", args);
-            // Cache txHash => blockHash
-            let blocks = {};
-            // Add any missing blockHash to the logs
+
+            const logs = yield this.fetch("logs", args); // Cache txHash => blockHash
+
+            let blocks = {}; // Add any missing blockHash to the logs
+
             for (let i = 0; i < logs.length; i++) {
               const log = logs[i];
+
               if (log.blockHash != null) {
                 continue;
               }
+
               if (blocks[log.blockNumber] == null) {
                 const block = yield this.getBlock(log.blockNumber);
+
                 if (block) {
                   blocks[log.blockNumber] = block.hash;
                 }
               }
+
               log.blockHash = blocks[log.blockNumber];
             }
+
             return logs;
           }
+
         case "getEtherPrice":
           if (this.network.name !== "homestead") {
             return 0.0;
           }
+
           return parseFloat((yield this.fetch("stats", {
             action: "ethprice"
           })).ethusd);
+
         default:
           break;
       }
+
       return _super.perform.call(this, method, params);
     });
-  }
-  // Note: The `page` page parameter only allows pagination within the
+  } // Note: The `page` page parameter only allows pagination within the
   //       10,000 window available without a page and offset parameter
   //       Error: Result window is too large, PageNo x Offset size must
   //              be less than or equal to 10000
+
+
   getHistory(addressOrName, startBlock, endBlock) {
     return __awaiter(this, void 0, void 0, function* () {
       const params = {
@@ -23987,21 +27486,28 @@ class EtherscanProvider extends _baseProvider.BaseProvider {
             delete tx[key];
           }
         });
+
         if (tx.creates == null && tx.contractAddress != null) {
           tx.creates = tx.contractAddress;
         }
+
         const item = this.formatter.transactionResponse(tx);
+
         if (tx.timeStamp) {
           item.timestamp = parseInt(tx.timeStamp);
         }
+
         return item;
       });
     });
   }
+
   isCommunityResource() {
     return this.apiKey === defaultApiKey;
   }
+
 }
+
 exports.EtherscanProvider = EtherscanProvider;
 },{"@ethersproject/bytes":"aqkS","@ethersproject/properties":"JuuX","@ethersproject/transactions":"OW34","@ethersproject/web":"egXK","./formatter":"nnuj","@ethersproject/logger":"kMNH","./_version":"UhEn","./base-provider":"SPLd"}],"JHW6":[function(require,module,exports) {
 "use strict";
@@ -24010,22 +27516,34 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.FallbackProvider = void 0;
+
 var _abstractProvider = require("@ethersproject/abstract-provider");
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _properties = require("@ethersproject/properties");
+
 var _random = require("@ethersproject/random");
+
 var _web = require("@ethersproject/web");
+
 var _baseProvider = require("./base-provider");
+
 var _formatter = require("./formatter");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P, generator) {
   function adopt(value) {
     return value instanceof P ? value : new P(function (resolve) {
       resolve(value);
     });
   }
+
   return new (P || (P = Promise))(function (resolve, reject) {
     function fulfilled(value) {
       try {
@@ -24034,6 +27552,7 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function rejected(value) {
       try {
         step(generator["throw"](value));
@@ -24041,26 +27560,33 @@ var __awaiter = void 0 && (void 0).__awaiter || function (thisArg, _arguments, P
         reject(e);
       }
     }
+
     function step(result) {
       result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
     }
+
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 };
+
 const logger = new _logger.Logger(_version.version);
+
 function now() {
   return new Date().getTime();
-}
-// Returns to network as long as all agree, or null if any is null.
+} // Returns to network as long as all agree, or null if any is null.
 // Throws an error if any two networks do not match.
+
+
 function checkNetworks(networks) {
   let result = null;
+
   for (let i = 0; i < networks.length; i++) {
-    const network = networks[i];
-    // Null! We do not know our network; bail.
+    const network = networks[i]; // Null! We do not know our network; bail.
+
     if (network == null) {
       return null;
     }
+
     if (result) {
       // Make sure the network matches the previous networks
       if (!(result.name === network.name && result.chainId === network.chainId && (result.ensAddress === network.ensAddress || result.ensAddress == null && network.ensAddress == null))) {
@@ -24070,23 +27596,29 @@ function checkNetworks(networks) {
       result = network;
     }
   }
+
   return result;
 }
+
 function median(values, maxDelta) {
   values = values.slice().sort();
-  const middle = Math.floor(values.length / 2);
-  // Odd length; take the middle
+  const middle = Math.floor(values.length / 2); // Odd length; take the middle
+
   if (values.length % 2) {
     return values[middle];
-  }
-  // Even length; take the average of the two middle
+  } // Even length; take the average of the two middle
+
+
   const a = values[middle - 1],
-    b = values[middle];
+        b = values[middle];
+
   if (maxDelta != null && Math.abs(a - b) > maxDelta) {
     return null;
   }
+
   return (a + b) / 2;
 }
+
 function serialize(value) {
   if (value === null) {
     return "null";
@@ -24103,19 +27635,24 @@ function serialize(value) {
     keys.sort();
     return "{" + keys.map(key => {
       let v = value[key];
+
       if (typeof v === "function") {
         v = "[function]";
       } else {
         v = serialize(v);
       }
+
       return JSON.stringify(key) + ":" + v;
     }).join(",") + "}";
   }
+
   throw new Error("unknown value type: " + typeof value);
-}
-// Next request ID to use for emitting debug info
+} // Next request ID to use for emitting debug info
+
+
 let nextRid = 1;
 ;
+
 function stall(duration) {
   let cancel = null;
   let timer = null;
@@ -24125,26 +27662,33 @@ function stall(duration) {
         clearTimeout(timer);
         timer = null;
       }
+
       resolve();
     };
+
     timer = setTimeout(cancel, duration);
   });
+
   const wait = func => {
     promise = promise.then(func);
     return promise;
   };
+
   function getPromise() {
     return promise;
   }
+
   return {
     cancel,
     getPromise,
     wait
   };
 }
+
 const ForwardErrors = [_logger.Logger.errors.CALL_EXCEPTION, _logger.Logger.errors.INSUFFICIENT_FUNDS, _logger.Logger.errors.NONCE_EXPIRED, _logger.Logger.errors.REPLACEMENT_UNDERPRICED, _logger.Logger.errors.UNPREDICTABLE_GAS_LIMIT];
 const ForwardProperties = ["address", "args", "errorArgs", "errorSignature", "method", "transaction"];
 ;
+
 function exposeDebugConfig(config, now) {
   const result = {
     weight: config.weight
@@ -24152,12 +27696,15 @@ function exposeDebugConfig(config, now) {
   Object.defineProperty(result, "provider", {
     get: () => config.provider
   });
+
   if (config.start) {
     result.start = config.start;
   }
+
   if (now) {
     result.duration = now - config.start;
   }
+
   if (config.done) {
     if (config.error) {
       result.error = config.error;
@@ -24165,36 +27712,45 @@ function exposeDebugConfig(config, now) {
       result.result = config.result || null;
     }
   }
+
   return result;
 }
+
 function normalizedTally(normalize, quorum) {
   return function (configs) {
     // Count the votes for each result
     const tally = {};
     configs.forEach(c => {
       const value = normalize(c.result);
+
       if (!tally[value]) {
         tally[value] = {
           count: 0,
           result: c.result
         };
       }
+
       tally[value].count++;
-    });
-    // Check for a quorum on any given result
+    }); // Check for a quorum on any given result
+
     const keys = Object.keys(tally);
+
     for (let i = 0; i < keys.length; i++) {
       const check = tally[keys[i]];
+
       if (check.count >= quorum) {
         return check.result;
       }
-    }
-    // No quroum
+    } // No quroum
+
+
     return undefined;
   };
 }
+
 function getProcessFunc(provider, method, params) {
   let normalize = serialize;
+
   switch (method) {
     case "getBlockNumber":
       // Return the median value, unless there is (median + 1) is also
@@ -24202,23 +27758,28 @@ function getProcessFunc(provider, method, params) {
       // is going to be stale soon. In the event of a malicious node,
       // the lie will be true soon enough.
       return function (configs) {
-        const values = configs.map(c => c.result);
-        // Get the median block number
+        const values = configs.map(c => c.result); // Get the median block number
+
         let blockNumber = median(configs.map(c => c.result), 2);
+
         if (blockNumber == null) {
           return undefined;
         }
-        blockNumber = Math.ceil(blockNumber);
-        // If the next block height is present, its prolly safe to use
+
+        blockNumber = Math.ceil(blockNumber); // If the next block height is present, its prolly safe to use
+
         if (values.indexOf(blockNumber + 1) >= 0) {
           blockNumber++;
-        }
-        // Don't ever roll back the blockNumber
+        } // Don't ever roll back the blockNumber
+
+
         if (blockNumber >= provider._highestBlockNumber) {
           provider._highestBlockNumber = blockNumber;
         }
+
         return provider._highestBlockNumber;
       };
+
     case "getGasPrice":
       // Return the middle (round index up) value, similar to median
       // but do not average even entries and choose the higher.
@@ -24228,6 +27789,7 @@ function getProcessFunc(provider, method, params) {
         values.sort();
         return values[Math.floor(values.length / 2)];
       };
+
     case "getEtherPrice":
       // Returns the median price. Malicious actors must compromise at
       // least 50% of the nodes to lie (in a meaningful way).
@@ -24235,6 +27797,7 @@ function getProcessFunc(provider, method, params) {
         return median(configs.map(c => c.result));
       };
     // No additional normalizing required; serialize is enough
+
     case "getBalance":
     case "getTransactionCount":
     case "getCode":
@@ -24244,18 +27807,22 @@ function getProcessFunc(provider, method, params) {
     case "getLogs":
       break;
     // We drop the confirmations from transactions as it is approximate
+
     case "getTransaction":
     case "getTransactionReceipt":
       normalize = function (tx) {
         if (tx == null) {
           return null;
         }
+
         tx = (0, _properties.shallowCopy)(tx);
         tx.confirmations = -1;
         return serialize(tx);
       };
+
       break;
     // We drop the confirmations from transactions as it is approximate
+
     case "getBlock":
       // We drop the confirmations from transactions as it is approximate
       if (params.includeTransactions) {
@@ -24263,6 +27830,7 @@ function getProcessFunc(provider, method, params) {
           if (block == null) {
             return null;
           }
+
           block = (0, _properties.shallowCopy)(block);
           block.transactions = block.transactions.map(tx => {
             tx = (0, _properties.shallowCopy)(tx);
@@ -24276,37 +27844,46 @@ function getProcessFunc(provider, method, params) {
           if (block == null) {
             return null;
           }
+
           return serialize(block);
         };
       }
+
       break;
+
     default:
       throw new Error("unknown method: " + method);
-  }
-  // Return the result if and only if the expected quorum is
+  } // Return the result if and only if the expected quorum is
   // satisfied and agreed upon for the final result.
+
+
   return normalizedTally(normalize, provider.quorum);
-}
-// If we are doing a blockTag query, we need to make sure the backend is
+} // If we are doing a blockTag query, we need to make sure the backend is
 // caught up to the FallbackProvider, before sending a request to it.
+
+
 function waitForSync(config, blockNumber) {
   return __awaiter(this, void 0, void 0, function* () {
     const provider = config.provider;
+
     if (provider.blockNumber != null && provider.blockNumber >= blockNumber || blockNumber === -1) {
       return provider;
     }
+
     return (0, _web.poll)(() => {
       return new Promise((resolve, reject) => {
         setTimeout(function () {
           // We are synced
           if (provider.blockNumber >= blockNumber) {
             return resolve(provider);
-          }
-          // We're done; just quit
+          } // We're done; just quit
+
+
           if (config.cancelled) {
             return resolve(null);
-          }
-          // Try again, next block
+          } // Try again, next block
+
+
           return resolve(undefined);
         }, 0);
       });
@@ -24315,65 +27892,85 @@ function waitForSync(config, blockNumber) {
     });
   });
 }
+
 function getRunner(config, currentBlockNumber, method, params) {
   return __awaiter(this, void 0, void 0, function* () {
     let provider = config.provider;
+
     switch (method) {
       case "getBlockNumber":
       case "getGasPrice":
         return provider[method]();
+
       case "getEtherPrice":
         if (provider.getEtherPrice) {
           return provider.getEtherPrice();
         }
+
         break;
+
       case "getBalance":
       case "getTransactionCount":
       case "getCode":
         if (params.blockTag && (0, _bytes.isHexString)(params.blockTag)) {
           provider = yield waitForSync(config, currentBlockNumber);
         }
+
         return provider[method](params.address, params.blockTag || "latest");
+
       case "getStorageAt":
         if (params.blockTag && (0, _bytes.isHexString)(params.blockTag)) {
           provider = yield waitForSync(config, currentBlockNumber);
         }
+
         return provider.getStorageAt(params.address, params.position, params.blockTag || "latest");
+
       case "getBlock":
         if (params.blockTag && (0, _bytes.isHexString)(params.blockTag)) {
           provider = yield waitForSync(config, currentBlockNumber);
         }
+
         return provider[params.includeTransactions ? "getBlockWithTransactions" : "getBlock"](params.blockTag || params.blockHash);
+
       case "call":
       case "estimateGas":
         if (params.blockTag && (0, _bytes.isHexString)(params.blockTag)) {
           provider = yield waitForSync(config, currentBlockNumber);
         }
+
         return provider[method](params.transaction);
+
       case "getTransaction":
       case "getTransactionReceipt":
         return provider[method](params.transactionHash);
+
       case "getLogs":
         {
           let filter = params.filter;
+
           if (filter.fromBlock && (0, _bytes.isHexString)(filter.fromBlock) || filter.toBlock && (0, _bytes.isHexString)(filter.toBlock)) {
             provider = yield waitForSync(config, currentBlockNumber);
           }
+
           return provider.getLogs(filter);
         }
     }
+
     return logger.throwError("unknown method error", _logger.Logger.errors.UNKNOWN_ERROR, {
       method: method,
       params: params
     });
   });
 }
+
 class FallbackProvider extends _baseProvider.BaseProvider {
   constructor(providers, quorum) {
     logger.checkNew(new.target, FallbackProvider);
+
     if (providers.length === 0) {
       logger.throwArgumentError("missing providers", "providers", providers);
     }
+
     const providerConfigs = providers.map((configOrProvider, index) => {
       if (_abstractProvider.Provider.isProvider(configOrProvider)) {
         const stallTimeout = (0, _formatter.isCommunityResource)(configOrProvider) ? 2000 : 750;
@@ -24385,31 +27982,40 @@ class FallbackProvider extends _baseProvider.BaseProvider {
           priority
         });
       }
+
       const config = (0, _properties.shallowCopy)(configOrProvider);
+
       if (config.priority == null) {
         config.priority = 1;
       }
+
       if (config.stallTimeout == null) {
         config.stallTimeout = (0, _formatter.isCommunityResource)(configOrProvider) ? 2000 : 750;
       }
+
       if (config.weight == null) {
         config.weight = 1;
       }
+
       const weight = config.weight;
+
       if (weight % 1 || weight > 512 || weight < 1) {
         logger.throwArgumentError("invalid weight; must be integer in [1, 512]", `providers[${index}].weight`, weight);
       }
+
       return Object.freeze(config);
     });
     const total = providerConfigs.reduce((accum, c) => accum + c.weight, 0);
+
     if (quorum == null) {
       quorum = total / 2;
     } else if (quorum > total) {
       logger.throwArgumentError("quorum will always fail; larger than total weight", "quorum", quorum);
-    }
-    // Are all providers' networks are known
-    let networkOrReady = checkNetworks(providerConfigs.map(c => c.provider.network));
-    // Not all networks are known; we must stall
+    } // Are all providers' networks are known
+
+
+    let networkOrReady = checkNetworks(providerConfigs.map(c => c.provider.network)); // Not all networks are known; we must stall
+
     if (networkOrReady == null) {
       networkOrReady = new Promise((resolve, reject) => {
         setTimeout(() => {
@@ -24417,18 +28023,21 @@ class FallbackProvider extends _baseProvider.BaseProvider {
         }, 0);
       });
     }
-    super(networkOrReady);
-    // Preserve a copy, so we do not get mutated
+
+    super(networkOrReady); // Preserve a copy, so we do not get mutated
+
     (0, _properties.defineReadOnly)(this, "providerConfigs", Object.freeze(providerConfigs));
     (0, _properties.defineReadOnly)(this, "quorum", quorum);
     this._highestBlockNumber = -1;
   }
+
   detectNetwork() {
     return __awaiter(this, void 0, void 0, function* () {
       const networks = yield Promise.all(this.providerConfigs.map(c => c.provider.getNetwork()));
       return checkNetworks(networks);
     });
   }
+
   perform(method, params) {
     return __awaiter(this, void 0, void 0, function* () {
       // Sending transactions is special; always broadcast it to all backends
@@ -24439,35 +28048,40 @@ class FallbackProvider extends _baseProvider.BaseProvider {
           }, error => {
             return error;
           });
-        }));
-        // Any success is good enough (other errors are likely "already seen" errors
+        })); // Any success is good enough (other errors are likely "already seen" errors
+
         for (let i = 0; i < results.length; i++) {
           const result = results[i];
+
           if (typeof result === "string") {
             return result;
           }
-        }
-        // They were all an error; pick the first error
+        } // They were all an error; pick the first error
+
+
         throw results[0];
-      }
-      // We need to make sure we are in sync with our backends, so we need
+      } // We need to make sure we are in sync with our backends, so we need
       // to know this before we can make a lot of calls
+
+
       if (this._highestBlockNumber === -1 && method !== "getBlockNumber") {
         yield this.getBlockNumber();
       }
-      const processFunc = getProcessFunc(this, method, params);
-      // Shuffle the providers and then sort them by their priority; we
+
+      const processFunc = getProcessFunc(this, method, params); // Shuffle the providers and then sort them by their priority; we
       // shallowCopy them since we will store the result in them too
+
       const configs = (0, _random.shuffled)(this.providerConfigs.map(_properties.shallowCopy));
       configs.sort((a, b) => a.priority - b.priority);
       const currentBlockNumber = this._highestBlockNumber;
       let i = 0;
       let first = true;
+
       while (true) {
-        const t0 = now();
-        // Compute the inflight weight (exclude anything past)
-        let inflightWeight = configs.filter(c => c.runner && t0 - c.start < c.stallTimeout).reduce((accum, c) => accum + c.weight, 0);
-        // Start running enough to meet quorum
+        const t0 = now(); // Compute the inflight weight (exclude anything past)
+
+        let inflightWeight = configs.filter(c => c.runner && t0 - c.start < c.stallTimeout).reduce((accum, c) => accum + c.weight, 0); // Start running enough to meet quorum
+
         while (inflightWeight < this.quorum && i < configs.length) {
           const config = configs[i++];
           const rid = nextRid++;
@@ -24479,6 +28093,7 @@ class FallbackProvider extends _baseProvider.BaseProvider {
           config.runner = getRunner(config, currentBlockNumber, method, params).then(result => {
             config.done = true;
             config.result = result;
+
             if (this.listenerCount("debug")) {
               this.emit("debug", {
                 action: "request",
@@ -24494,6 +28109,7 @@ class FallbackProvider extends _baseProvider.BaseProvider {
           }, error => {
             config.done = true;
             config.error = error;
+
             if (this.listenerCount("debug")) {
               this.emit("debug", {
                 action: "request",
@@ -24507,6 +28123,7 @@ class FallbackProvider extends _baseProvider.BaseProvider {
               });
             }
           });
+
           if (this.listenerCount("debug")) {
             this.emit("debug", {
               action: "request",
@@ -24519,48 +28136,62 @@ class FallbackProvider extends _baseProvider.BaseProvider {
               provider: this
             });
           }
+
           inflightWeight += config.weight;
-        }
-        // Wait for anything meaningful to finish or stall out
+        } // Wait for anything meaningful to finish or stall out
+
+
         const waiting = [];
         configs.forEach(c => {
           if (c.done || !c.runner) {
             return;
           }
+
           waiting.push(c.runner);
+
           if (c.staller) {
             waiting.push(c.staller.getPromise());
           }
         });
+
         if (waiting.length) {
           yield Promise.race(waiting);
-        }
-        // Check the quorum and process the results; the process function
+        } // Check the quorum and process the results; the process function
         // may additionally decide the quorum is not met
+
+
         const results = configs.filter(c => c.done && c.error == null);
+
         if (results.length >= this.quorum) {
           const result = processFunc(results);
+
           if (result !== undefined) {
             // Shut down any stallers
             configs.forEach(c => {
               if (c.staller) {
                 c.staller.cancel();
               }
+
               c.cancelled = true;
             });
             return result;
           }
+
           if (!first) {
             yield stall(100).getPromise();
           }
+
           first = false;
-        }
-        // No result, check for errors that should be forwarded
+        } // No result, check for errors that should be forwarded
+
+
         const errors = configs.reduce((accum, c) => {
           if (!c.done || c.error == null) {
             return accum;
           }
+
           const code = c.error.code;
+
           if (ForwardErrors.indexOf(code) >= 0) {
             if (!accum[code]) {
               accum[code] = {
@@ -24568,20 +28199,25 @@ class FallbackProvider extends _baseProvider.BaseProvider {
                 weight: 0
               };
             }
+
             accum[code].weight += c.weight;
           }
+
           return accum;
         }, {});
         Object.keys(errors).forEach(errorCode => {
           const tally = errors[errorCode];
+
           if (tally.weight < this.quorum) {
             return;
-          }
-          // Shut down any stallers
+          } // Shut down any stallers
+
+
           configs.forEach(c => {
             if (c.staller) {
               c.staller.cancel();
             }
+
             c.cancelled = true;
           });
           const e = tally.error;
@@ -24590,20 +28226,23 @@ class FallbackProvider extends _baseProvider.BaseProvider {
             if (e[name] == null) {
               return;
             }
+
             props[name] = e[name];
           });
           logger.throwError(e.reason || e.message, errorCode, props);
-        });
-        // All configs have run to completion; we will never get more data
+        }); // All configs have run to completion; we will never get more data
+
         if (configs.filter(c => !c.done).length === 0) {
           break;
         }
-      }
-      // Shut down any stallers; shouldn't be any
+      } // Shut down any stallers; shouldn't be any
+
+
       configs.forEach(c => {
         if (c.staller) {
           c.staller.cancel();
         }
+
         c.cancelled = true;
       });
       return logger.throwError("failed to meet quorum", _logger.Logger.errors.SERVER_ERROR, {
@@ -24616,7 +28255,9 @@ class FallbackProvider extends _baseProvider.BaseProvider {
       });
     });
   }
+
 }
+
 exports.FallbackProvider = FallbackProvider;
 },{"@ethersproject/abstract-provider":"GKyj","@ethersproject/bignumber":"efJK","@ethersproject/bytes":"aqkS","@ethersproject/properties":"JuuX","@ethersproject/random":"LoH0","@ethersproject/web":"egXK","./base-provider":"SPLd","./formatter":"nnuj","@ethersproject/logger":"kMNH","./_version":"UhEn"}],"VRXh":[function(require,module,exports) {
 "use strict";
@@ -24634,47 +28275,64 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.InfuraWebSocketProvider = exports.InfuraProvider = void 0;
+
 var _properties = require("@ethersproject/properties");
+
 var _websocketProvider = require("./websocket-provider");
+
 var _formatter = require("./formatter");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var _urlJsonRpcProvider = require("./url-json-rpc-provider");
+
 const logger = new _logger.Logger(_version.version);
 const defaultProjectId = "84842078b09946638c03157f83405213";
+
 class InfuraWebSocketProvider extends _websocketProvider.WebSocketProvider {
   constructor(network, apiKey) {
     const provider = new InfuraProvider(network, apiKey);
     const connection = provider.connection;
+
     if (connection.password) {
       logger.throwError("INFURA WebSocket project secrets unsupported", _logger.Logger.errors.UNSUPPORTED_OPERATION, {
         operation: "InfuraProvider.getWebSocketProvider()"
       });
     }
+
     const url = connection.url.replace(/^http/i, "ws").replace("/v3/", "/ws/v3/");
     super(url, network);
     (0, _properties.defineReadOnly)(this, "apiKey", provider.projectId);
     (0, _properties.defineReadOnly)(this, "projectId", provider.projectId);
     (0, _properties.defineReadOnly)(this, "projectSecret", provider.projectSecret);
   }
+
   isCommunityResource() {
     return this.projectId === defaultProjectId;
   }
+
 }
+
 exports.InfuraWebSocketProvider = InfuraWebSocketProvider;
+
 class InfuraProvider extends _urlJsonRpcProvider.UrlJsonRpcProvider {
   static getWebSocketProvider(network, apiKey) {
     return new InfuraWebSocketProvider(network, apiKey);
   }
+
   static getApiKey(apiKey) {
     const apiKeyObj = {
       apiKey: defaultProjectId,
       projectId: defaultProjectId,
       projectSecret: null
     };
+
     if (apiKey == null) {
       return apiKeyObj;
     }
+
     if (typeof apiKey === "string") {
       apiKeyObj.projectId = apiKey;
     } else if (apiKey.projectSecret != null) {
@@ -24685,39 +28343,50 @@ class InfuraProvider extends _urlJsonRpcProvider.UrlJsonRpcProvider {
     } else if (apiKey.projectId) {
       apiKeyObj.projectId = apiKey.projectId;
     }
+
     apiKeyObj.apiKey = apiKeyObj.projectId;
     return apiKeyObj;
   }
+
   static getUrl(network, apiKey) {
     let host = null;
+
     switch (network ? network.name : "unknown") {
       case "homestead":
         host = "mainnet.infura.io";
         break;
+
       case "ropsten":
         host = "ropsten.infura.io";
         break;
+
       case "rinkeby":
         host = "rinkeby.infura.io";
         break;
+
       case "kovan":
         host = "kovan.infura.io";
         break;
+
       case "goerli":
         host = "goerli.infura.io";
         break;
+
       case "matic":
         host = "polygon-mainnet.infura.io";
         break;
+
       case "maticmum":
         host = "polygon-mumbai.infura.io";
         break;
+
       default:
         logger.throwError("unsupported network", _logger.Logger.errors.INVALID_ARGUMENT, {
           argument: "network",
           value: network
         });
     }
+
     const connection = {
       allowGzip: true,
       url: "https:/" + "/" + host + "/v3/" + apiKey.projectId,
@@ -24725,19 +28394,25 @@ class InfuraProvider extends _urlJsonRpcProvider.UrlJsonRpcProvider {
         if (apiKey.projectId === defaultProjectId) {
           (0, _formatter.showThrottleMessage)();
         }
+
         return Promise.resolve(true);
       }
     };
+
     if (apiKey.projectSecret != null) {
       connection.user = "";
       connection.password = apiKey.projectSecret;
     }
+
     return connection;
   }
+
   isCommunityResource() {
     return this.projectId === defaultProjectId;
   }
+
 }
+
 exports.InfuraProvider = InfuraProvider;
 },{"@ethersproject/properties":"JuuX","./websocket-provider":"lCOP","./formatter":"nnuj","@ethersproject/logger":"kMNH","./_version":"UhEn","./url-json-rpc-provider":"JsTC"}],"oqch":[function(require,module,exports) {
 "use strict";
@@ -24746,9 +28421,13 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.JsonRpcBatchProvider = void 0;
+
 var _properties = require("@ethersproject/properties");
+
 var _web = require("@ethersproject/web");
+
 var _jsonRpcProvider = require("./json-rpc-provider");
+
 // Experimental
 class JsonRpcBatchProvider extends _jsonRpcProvider.JsonRpcProvider {
   send(method, params) {
@@ -24758,9 +28437,11 @@ class JsonRpcBatchProvider extends _jsonRpcProvider.JsonRpcProvider {
       id: this._nextId++,
       jsonrpc: "2.0"
     };
+
     if (this._pendingBatch == null) {
       this._pendingBatch = [];
     }
+
     const inflightRequest = {
       request,
       resolve: null,
@@ -24770,7 +28451,9 @@ class JsonRpcBatchProvider extends _jsonRpcProvider.JsonRpcProvider {
       inflightRequest.resolve = resolve;
       inflightRequest.reject = reject;
     });
+
     this._pendingBatch.push(inflightRequest);
+
     if (!this._pendingBatchAggregator) {
       // Schedule batch for next event loop + short duration
       this._pendingBatchAggregator = setTimeout(() => {
@@ -24778,8 +28461,8 @@ class JsonRpcBatchProvider extends _jsonRpcProvider.JsonRpcProvider {
         // go into the next batch
         const batch = this._pendingBatch;
         this._pendingBatch = null;
-        this._pendingBatchAggregator = null;
-        // Get the request as an array of requests
+        this._pendingBatchAggregator = null; // Get the request as an array of requests
+
         const request = batch.map(inflight => inflight.request);
         this.emit("debug", {
           action: "requestBatch",
@@ -24792,11 +28475,12 @@ class JsonRpcBatchProvider extends _jsonRpcProvider.JsonRpcProvider {
             request: request,
             response: result,
             provider: this
-          });
-          // For each result, feed it to the correct Promise, depending
+          }); // For each result, feed it to the correct Promise, depending
           // on whether it was a success or error
+
           batch.forEach((inflightRequest, index) => {
             const payload = result[index];
+
             if (payload.error) {
               const error = new Error(payload.error.message);
               error.code = payload.error.code;
@@ -24819,9 +28503,12 @@ class JsonRpcBatchProvider extends _jsonRpcProvider.JsonRpcProvider {
         });
       }, 10);
     }
+
     return promise;
   }
+
 }
+
 exports.JsonRpcBatchProvider = JsonRpcBatchProvider;
 },{"@ethersproject/properties":"JuuX","@ethersproject/web":"egXK","./json-rpc-provider":"HkBu"}],"SEz3":[function(require,module,exports) {
 /* istanbul ignore file */
@@ -24831,44 +28518,60 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.NodesmithProvider = void 0;
+
 var _urlJsonRpcProvider = require("./url-json-rpc-provider");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
-const logger = new _logger.Logger(_version.version);
-// Special API key provided by Nodesmith for ethers.js
+
+const logger = new _logger.Logger(_version.version); // Special API key provided by Nodesmith for ethers.js
+
 const defaultApiKey = "ETHERS_JS_SHARED";
+
 class NodesmithProvider extends _urlJsonRpcProvider.UrlJsonRpcProvider {
   static getApiKey(apiKey) {
     if (apiKey && typeof apiKey !== "string") {
       logger.throwArgumentError("invalid apiKey", "apiKey", apiKey);
     }
+
     return apiKey || defaultApiKey;
   }
+
   static getUrl(network, apiKey) {
     logger.warn("NodeSmith will be discontinued on 2019-12-20; please migrate to another platform.");
     let host = null;
+
     switch (network.name) {
       case "homestead":
         host = "https://ethereum.api.nodesmith.io/v1/mainnet/jsonrpc";
         break;
+
       case "ropsten":
         host = "https://ethereum.api.nodesmith.io/v1/ropsten/jsonrpc";
         break;
+
       case "rinkeby":
         host = "https://ethereum.api.nodesmith.io/v1/rinkeby/jsonrpc";
         break;
+
       case "goerli":
         host = "https://ethereum.api.nodesmith.io/v1/goerli/jsonrpc";
         break;
+
       case "kovan":
         host = "https://ethereum.api.nodesmith.io/v1/kovan/jsonrpc";
         break;
+
       default:
         logger.throwArgumentError("unsupported network", "network", arguments[0]);
     }
+
     return host + "?apiKey=" + apiKey;
   }
+
 }
+
 exports.NodesmithProvider = NodesmithProvider;
 },{"./url-json-rpc-provider":"JsTC","@ethersproject/logger":"kMNH","./_version":"UhEn"}],"K0WX":[function(require,module,exports) {
 "use strict";
@@ -24877,10 +28580,15 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.PocketProvider = void 0;
+
 var _properties = require("@ethersproject/properties");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var _urlJsonRpcProvider = require("./url-json-rpc-provider");
+
 const logger = new _logger.Logger(_version.version);
 // These are load-balancer-based application IDs
 const defaultApplicationIds = {
@@ -24889,22 +28597,26 @@ const defaultApplicationIds = {
   rinkeby: "6004bda20040261633ade994",
   goerli: "6004bd860040261633ade992"
 };
+
 class PocketProvider extends _urlJsonRpcProvider.UrlJsonRpcProvider {
   constructor(network, apiKey) {
     // We need a bit of creativity in the constructor because
     // Pocket uses different default API keys based on the network
     if (apiKey == null) {
       const n = (0, _properties.getStatic)(new.target, "getNetwork")(network);
+
       if (n) {
         const applicationId = defaultApplicationIds[n.name];
+
         if (applicationId) {
           apiKey = {
             applicationId: applicationId,
             loadBalancer: true
           };
         }
-      }
-      // If there was any issue above, we don't know this network
+      } // If there was any issue above, we don't know this network
+
+
       if (apiKey == null) {
         logger.throwError("unsupported network", _logger.Logger.errors.INVALID_ARGUMENT, {
           argument: "network",
@@ -24912,8 +28624,10 @@ class PocketProvider extends _urlJsonRpcProvider.UrlJsonRpcProvider {
         });
       }
     }
+
     super(network, apiKey);
   }
+
   static getApiKey(apiKey) {
     // Most API Providers allow null to get the default configuration, but
     // Pocket requires the network to decide the default provider, so we
@@ -24921,12 +28635,13 @@ class PocketProvider extends _urlJsonRpcProvider.UrlJsonRpcProvider {
     if (apiKey == null) {
       logger.throwArgumentError("PocketProvider.getApiKey does not support null apiKey", "apiKey", apiKey);
     }
+
     const apiKeyObj = {
       applicationId: null,
       loadBalancer: false,
       applicationSecretKey: null
-    };
-    // Parse applicationId and applicationSecretKey
+    }; // Parse applicationId and applicationSecretKey
+
     if (typeof apiKey === "string") {
       apiKeyObj.applicationId = apiKey;
     } else if (apiKey.applicationSecretKey != null) {
@@ -24942,51 +28657,65 @@ class PocketProvider extends _urlJsonRpcProvider.UrlJsonRpcProvider {
     } else {
       logger.throwArgumentError("unsupported PocketProvider apiKey", "apiKey", apiKey);
     }
+
     return apiKeyObj;
   }
+
   static getUrl(network, apiKey) {
     let host = null;
+
     switch (network ? network.name : "unknown") {
       case "homestead":
         host = "eth-mainnet.gateway.pokt.network";
         break;
+
       case "ropsten":
         host = "eth-ropsten.gateway.pokt.network";
         break;
+
       case "rinkeby":
         host = "eth-rinkeby.gateway.pokt.network";
         break;
+
       case "goerli":
         host = "eth-goerli.gateway.pokt.network";
         break;
+
       default:
         logger.throwError("unsupported network", _logger.Logger.errors.INVALID_ARGUMENT, {
           argument: "network",
           value: network
         });
     }
+
     let url = null;
+
     if (apiKey.loadBalancer) {
       url = `https:/\/${host}/v1/lb/${apiKey.applicationId}`;
     } else {
       url = `https:/\/${host}/v1/${apiKey.applicationId}`;
     }
+
     const connection = {
       url
-    };
-    // Initialize empty headers
-    connection.headers = {};
-    // Apply application secret key
+    }; // Initialize empty headers
+
+    connection.headers = {}; // Apply application secret key
+
     if (apiKey.applicationSecretKey != null) {
       connection.user = "";
       connection.password = apiKey.applicationSecretKey;
     }
+
     return connection;
   }
+
   isCommunityResource() {
     return this.applicationId === defaultApplicationIds[this.network.name];
   }
+
 }
+
 exports.PocketProvider = PocketProvider;
 },{"@ethersproject/properties":"JuuX","@ethersproject/logger":"kMNH","./_version":"UhEn","./url-json-rpc-provider":"JsTC"}],"ELRQ":[function(require,module,exports) {
 "use strict";
@@ -24995,12 +28724,18 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.Web3Provider = void 0;
+
 var _properties = require("@ethersproject/properties");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 var _jsonRpcProvider = require("./json-rpc-provider");
+
 const logger = new _logger.Logger(_version.version);
 let _nextId = 1;
+
 function buildWeb3LegacyFetcher(provider, sendFunc) {
   const fetcher = "Web3LegacyFetcher";
   return function (method, params) {
@@ -25028,6 +28763,7 @@ function buildWeb3LegacyFetcher(provider, sendFunc) {
           });
           return reject(error);
         }
+
         this.emit("debug", {
           action: "response",
           fetcher,
@@ -25035,22 +28771,26 @@ function buildWeb3LegacyFetcher(provider, sendFunc) {
           response,
           provider: this
         });
+
         if (response.error) {
           const error = new Error(response.error.message);
           error.code = response.error.code;
           error.data = response.error.data;
           return reject(error);
         }
+
         resolve(response.result);
       });
     });
   };
 }
+
 function buildEip1193Fetcher(provider) {
   return function (method, params) {
     if (params == null) {
       params = [];
     }
+
     const request = {
       method,
       params
@@ -25082,28 +28822,36 @@ function buildEip1193Fetcher(provider) {
     });
   };
 }
+
 class Web3Provider extends _jsonRpcProvider.JsonRpcProvider {
   constructor(provider, network) {
     logger.checkNew(new.target, Web3Provider);
+
     if (provider == null) {
       logger.throwArgumentError("missing provider", "provider", provider);
     }
+
     let path = null;
     let jsonRpcFetchFunc = null;
     let subprovider = null;
+
     if (typeof provider === "function") {
       path = "unknown:";
       jsonRpcFetchFunc = provider;
     } else {
       path = provider.host || provider.path || "";
+
       if (!path && provider.isMetaMask) {
         path = "metamask";
       }
+
       subprovider = provider;
+
       if (provider.request) {
         if (path === "") {
           path = "eip-1193:";
         }
+
         jsonRpcFetchFunc = buildEip1193Fetcher(provider);
       } else if (provider.sendAsync) {
         jsonRpcFetchFunc = buildWeb3LegacyFetcher(provider, provider.sendAsync.bind(provider));
@@ -25112,18 +28860,23 @@ class Web3Provider extends _jsonRpcProvider.JsonRpcProvider {
       } else {
         logger.throwArgumentError("unsupported provider", "provider", provider);
       }
+
       if (!path) {
         path = "unknown:";
       }
     }
+
     super(path, network);
     (0, _properties.defineReadOnly)(this, "jsonRpcFetchFunc", jsonRpcFetchFunc);
     (0, _properties.defineReadOnly)(this, "provider", subprovider);
   }
+
   send(method, params) {
     return this.jsonRpcFetchFunc(method, params);
   }
+
 }
+
 exports.Web3Provider = Web3Provider;
 },{"@ethersproject/properties":"JuuX","@ethersproject/logger":"kMNH","./_version":"UhEn","./json-rpc-provider":"HkBu"}],"JCNj":[function(require,module,exports) {
 "use strict";
@@ -25282,55 +29035,82 @@ Object.defineProperty(exports, "showThrottleMessage", {
     return _formatter.showThrottleMessage;
   }
 });
+
 var _abstractProvider = require("@ethersproject/abstract-provider");
+
 var _networks = require("@ethersproject/networks");
+
 var _baseProvider = require("./base-provider");
+
 var _alchemyProvider = require("./alchemy-provider");
+
 var _cloudflareProvider = require("./cloudflare-provider");
+
 var _etherscanProvider = require("./etherscan-provider");
+
 var _fallbackProvider = require("./fallback-provider");
+
 var _ipcProvider = require("./ipc-provider");
+
 var _infuraProvider = require("./infura-provider");
+
 var _jsonRpcProvider = require("./json-rpc-provider");
+
 var _jsonRpcBatchProvider = require("./json-rpc-batch-provider");
+
 var _nodesmithProvider = require("./nodesmith-provider");
+
 var _pocketProvider = require("./pocket-provider");
+
 var _urlJsonRpcProvider = require("./url-json-rpc-provider");
+
 var _web3Provider = require("./web3-provider");
+
 var _websocketProvider = require("./websocket-provider");
+
 var _formatter = require("./formatter");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
-const logger = new _logger.Logger(_version.version);
-////////////////////////
+
+const logger = new _logger.Logger(_version.version); ////////////////////////
 // Helper Functions
+
 function getDefaultProvider(network, options) {
   if (network == null) {
     network = "homestead";
-  }
-  // If passed a URL, figure out the right type of provider based on the scheme
+  } // If passed a URL, figure out the right type of provider based on the scheme
+
+
   if (typeof network === "string") {
     // @TODO: Add support for IpcProvider; maybe if it ends in ".ipc"?
     // Handle http and ws (and their secure variants)
     const match = network.match(/^(ws|http)s?:/i);
+
     if (match) {
       switch (match[1]) {
         case "http":
           return new _jsonRpcProvider.JsonRpcProvider(network);
+
         case "ws":
           return new _websocketProvider.WebSocketProvider(network);
+
         default:
           logger.throwArgumentError("unsupported URL scheme", "network", network);
       }
     }
   }
+
   const n = (0, _networks.getNetwork)(network);
+
   if (!n || !n._defaultProvider) {
     logger.throwError("unsupported getDefaultProvider network", _logger.Logger.errors.NETWORK_ERROR, {
       operation: "getDefaultProvider",
       network: network
     });
   }
+
   return n._defaultProvider({
     FallbackProvider: _fallbackProvider.FallbackProvider,
     AlchemyProvider: _alchemyProvider.AlchemyProvider,
@@ -25343,8 +29123,7 @@ function getDefaultProvider(network, options) {
     Web3Provider: _web3Provider.Web3Provider,
     IpcProvider: _ipcProvider.IpcProvider
   }, options);
-}
-////////////////////////
+} ////////////////////////
 // Exports
 },{"@ethersproject/abstract-provider":"GKyj","@ethersproject/networks":"k9P0","./base-provider":"SPLd","./alchemy-provider":"Lc7y","./cloudflare-provider":"VQyX","./etherscan-provider":"U5hR","./fallback-provider":"JHW6","./ipc-provider":"VRXh","./infura-provider":"CNMZ","./json-rpc-provider":"HkBu","./json-rpc-batch-provider":"oqch","./nodesmith-provider":"SEz3","./pocket-provider":"K0WX","./url-json-rpc-provider":"JsTC","./web3-provider":"ELRQ","./websocket-provider":"lCOP","./formatter":"nnuj","@ethersproject/logger":"kMNH","./_version":"UhEn"}],"ZaRX":[function(require,module,exports) {
 "use strict";
@@ -25364,92 +29143,127 @@ Object.defineProperty(exports, "__esModule", {
 exports.keccak256 = keccak256;
 exports.pack = pack;
 exports.sha256 = sha256;
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _keccak = require("@ethersproject/keccak256");
+
 var _sha = require("@ethersproject/sha2");
+
 var _strings = require("@ethersproject/strings");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 const regexBytes = new RegExp("^bytes([0-9]+)$");
 const regexNumber = new RegExp("^(u?int)([0-9]*)$");
 const regexArray = new RegExp("^(.*)\\[([0-9]*)\\]$");
 const Zeros = "0000000000000000000000000000000000000000000000000000000000000000";
 const logger = new _logger.Logger(_version.version);
+
 function _pack(type, value, isArray) {
   switch (type) {
     case "address":
       if (isArray) {
         return (0, _bytes.zeroPad)(value, 32);
       }
+
       return (0, _bytes.arrayify)(value);
+
     case "string":
       return (0, _strings.toUtf8Bytes)(value);
+
     case "bytes":
       return (0, _bytes.arrayify)(value);
+
     case "bool":
       value = value ? "0x01" : "0x00";
+
       if (isArray) {
         return (0, _bytes.zeroPad)(value, 32);
       }
+
       return (0, _bytes.arrayify)(value);
   }
+
   let match = type.match(regexNumber);
+
   if (match) {
     //let signed = (match[1] === "int")
     let size = parseInt(match[2] || "256");
+
     if (match[2] && String(size) !== match[2] || size % 8 !== 0 || size === 0 || size > 256) {
       logger.throwArgumentError("invalid number type", "type", type);
     }
+
     if (isArray) {
       size = 256;
     }
+
     value = _bignumber.BigNumber.from(value).toTwos(size);
     return (0, _bytes.zeroPad)(value, size / 8);
   }
+
   match = type.match(regexBytes);
+
   if (match) {
     const size = parseInt(match[1]);
+
     if (String(size) !== match[1] || size === 0 || size > 32) {
       logger.throwArgumentError("invalid bytes type", "type", type);
     }
+
     if ((0, _bytes.arrayify)(value).byteLength !== size) {
       logger.throwArgumentError(`invalid value for ${type}`, "value", value);
     }
+
     if (isArray) {
       return (0, _bytes.arrayify)((value + Zeros).substring(0, 66));
     }
+
     return value;
   }
+
   match = type.match(regexArray);
+
   if (match && Array.isArray(value)) {
     const baseType = match[1];
     const count = parseInt(match[2] || String(value.length));
+
     if (count != value.length) {
       logger.throwArgumentError(`invalid array length for ${type}`, "value", value);
     }
+
     const result = [];
     value.forEach(function (value) {
       result.push(_pack(baseType, value, true));
     });
     return (0, _bytes.concat)(result);
   }
+
   return logger.throwArgumentError("invalid type", "type", type);
-}
-// @TODO: Array Enum
+} // @TODO: Array Enum
+
+
 function pack(types, values) {
   if (types.length != values.length) {
     logger.throwArgumentError("wrong number of values; expected ${ types.length }", "values", values);
   }
+
   const tight = [];
   types.forEach(function (type, index) {
     tight.push(_pack(type, values[index]));
   });
   return (0, _bytes.hexlify)((0, _bytes.concat)(tight));
 }
+
 function keccak256(types, values) {
   return (0, _keccak.keccak256)(pack(types, values));
 }
+
 function sha256(types, values) {
   return (0, _sha.sha256)(pack(types, values));
 }
@@ -25473,40 +29287,54 @@ exports.formatEther = formatEther;
 exports.formatUnits = formatUnits;
 exports.parseEther = parseEther;
 exports.parseUnits = parseUnits;
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 const logger = new _logger.Logger(_version.version);
-const names = ["wei", "kwei", "mwei", "gwei", "szabo", "finney", "ether"];
-// Some environments have issues with RegEx that contain back-tracking, so we cannot
+const names = ["wei", "kwei", "mwei", "gwei", "szabo", "finney", "ether"]; // Some environments have issues with RegEx that contain back-tracking, so we cannot
 // use them.
+
 function commify(value) {
   const comps = String(value).split(".");
+
   if (comps.length > 2 || !comps[0].match(/^-?[0-9]*$/) || comps[1] && !comps[1].match(/^[0-9]*$/) || value === "." || value === "-.") {
     logger.throwArgumentError("invalid value", "value", value);
-  }
-  // Make sure we have at least one whole digit (0 if none)
+  } // Make sure we have at least one whole digit (0 if none)
+
+
   let whole = comps[0];
   let negative = "";
+
   if (whole.substring(0, 1) === "-") {
     negative = "-";
     whole = whole.substring(1);
-  }
-  // Make sure we have at least 1 whole digit with no leading zeros
+  } // Make sure we have at least 1 whole digit with no leading zeros
+
+
   while (whole.substring(0, 1) === "0") {
     whole = whole.substring(1);
   }
+
   if (whole === "") {
     whole = "0";
   }
+
   let suffix = "";
+
   if (comps.length === 2) {
     suffix = "." + (comps[1] || "0");
   }
+
   while (suffix.length > 2 && suffix[suffix.length - 1] === "0") {
     suffix = suffix.substring(0, suffix.length - 1);
   }
+
   const formatted = [];
+
   while (whole.length) {
     if (whole.length <= 3) {
       formatted.unshift(whole);
@@ -25517,32 +29345,42 @@ function commify(value) {
       whole = whole.substring(0, index);
     }
   }
+
   return negative + formatted.join(",") + suffix;
 }
+
 function formatUnits(value, unitName) {
   if (typeof unitName === "string") {
     const index = names.indexOf(unitName);
+
     if (index !== -1) {
       unitName = 3 * index;
     }
   }
+
   return (0, _bignumber.formatFixed)(value, unitName != null ? unitName : 18);
 }
+
 function parseUnits(value, unitName) {
   if (typeof value !== "string") {
     logger.throwArgumentError("value must be a string", "value", value);
   }
+
   if (typeof unitName === "string") {
     const index = names.indexOf(unitName);
+
     if (index !== -1) {
       unitName = 3 * index;
     }
   }
+
   return (0, _bignumber.parseFixed)(value, unitName != null ? unitName : 18);
 }
+
 function formatEther(wei) {
   return formatUnits(wei, 18);
 }
+
 function parseEther(ether) {
   return parseUnits(ether, 18);
 }
@@ -26130,30 +29968,55 @@ Object.defineProperty(exports, "zeroPad", {
     return _bytes.zeroPad;
   }
 });
+
 var _abi = require("@ethersproject/abi");
+
 var _address = require("@ethersproject/address");
+
 var base64 = _interopRequireWildcard(require("@ethersproject/base64"));
+
 exports.base64 = base64;
+
 var _basex = require("@ethersproject/basex");
+
 var _bytes = require("@ethersproject/bytes");
+
 var _hash = require("@ethersproject/hash");
+
 var _hdnode = require("@ethersproject/hdnode");
+
 var _jsonWallets = require("@ethersproject/json-wallets");
+
 var _keccak = require("@ethersproject/keccak256");
+
 var _logger = require("@ethersproject/logger");
+
 var _sha = require("@ethersproject/sha2");
+
 var _solidity = require("@ethersproject/solidity");
+
 var _random = require("@ethersproject/random");
+
 var _properties = require("@ethersproject/properties");
+
 var RLP = _interopRequireWildcard(require("@ethersproject/rlp"));
+
 exports.RLP = RLP;
+
 var _signingKey = require("@ethersproject/signing-key");
+
 var _strings = require("@ethersproject/strings");
+
 var _transactions = require("@ethersproject/transactions");
+
 var _units = require("@ethersproject/units");
+
 var _wallet = require("@ethersproject/wallet");
+
 var _web = require("@ethersproject/web");
+
 function _getRequireWildcardCache(nodeInterop) { if (typeof WeakMap !== "function") return null; var cacheBabelInterop = new WeakMap(); var cacheNodeInterop = new WeakMap(); return (_getRequireWildcardCache = function (nodeInterop) { return nodeInterop ? cacheNodeInterop : cacheBabelInterop; })(nodeInterop); }
+
 function _interopRequireWildcard(obj, nodeInterop) { if (!nodeInterop && obj && obj.__esModule) { return obj; } if (obj === null || typeof obj !== "object" && typeof obj !== "function") { return { default: obj }; } var cache = _getRequireWildcardCache(nodeInterop); if (cache && cache.has(obj)) { return cache.get(obj); } var newObj = {}; var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor; for (var key in obj) { if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) { var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null; if (desc && (desc.get || desc.set)) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } newObj.default = obj; if (cache) { cache.set(obj, newObj); } return newObj; }
 },{"@ethersproject/abi":"FSnr","@ethersproject/address":"a1wm","@ethersproject/base64":"ybca","@ethersproject/basex":"Q7g1","@ethersproject/bytes":"aqkS","@ethersproject/hash":"eHxR","@ethersproject/hdnode":"oCaL","@ethersproject/json-wallets":"TeON","@ethersproject/keccak256":"g6Gq","@ethersproject/logger":"kMNH","@ethersproject/sha2":"C9Hj","@ethersproject/solidity":"dtwr","@ethersproject/random":"LoH0","@ethersproject/properties":"JuuX","@ethersproject/rlp":"oUFp","@ethersproject/signing-key":"KjI1","@ethersproject/strings":"ZW9k","@ethersproject/transactions":"OW34","@ethersproject/units":"UGHG","@ethersproject/wallet":"TP6f","@ethersproject/web":"egXK"}],"yxar":[function(require,module,exports) {
 "use strict";
@@ -26250,33 +30113,47 @@ Object.defineProperty(exports, "wordlists", {
     return _wordlists.wordlists;
   }
 });
+
 var _contracts = require("@ethersproject/contracts");
+
 var _bignumber = require("@ethersproject/bignumber");
+
 var _abstractSigner = require("@ethersproject/abstract-signer");
+
 var _wallet = require("@ethersproject/wallet");
+
 var constants = _interopRequireWildcard(require("@ethersproject/constants"));
+
 exports.constants = constants;
+
 var providers = _interopRequireWildcard(require("@ethersproject/providers"));
+
 exports.providers = providers;
+
 var _wordlists = require("@ethersproject/wordlists");
+
 var utils = _interopRequireWildcard(require("./utils"));
+
 exports.utils = utils;
+
 var _logger = require("@ethersproject/logger");
+
 var _version = require("./_version");
+
 function _getRequireWildcardCache(nodeInterop) { if (typeof WeakMap !== "function") return null; var cacheBabelInterop = new WeakMap(); var cacheNodeInterop = new WeakMap(); return (_getRequireWildcardCache = function (nodeInterop) { return nodeInterop ? cacheNodeInterop : cacheBabelInterop; })(nodeInterop); }
+
 function _interopRequireWildcard(obj, nodeInterop) { if (!nodeInterop && obj && obj.__esModule) { return obj; } if (obj === null || typeof obj !== "object" && typeof obj !== "function") { return { default: obj }; } var cache = _getRequireWildcardCache(nodeInterop); if (cache && cache.has(obj)) { return cache.get(obj); } var newObj = {}; var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor; for (var key in obj) { if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) { var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null; if (desc && (desc.get || desc.set)) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } newObj.default = obj; if (cache) { cache.set(obj, newObj); } return newObj; }
+
 ////////////////////////
 // Compile-Time Constants
 // This is generated by "npm run dist"
-
-const logger = new _logger.Logger(_version.version);
-////////////////////////
+const logger = new _logger.Logger(_version.version); ////////////////////////
 // Exports
+
 exports.logger = logger;
 },{"@ethersproject/contracts":"PzG9","@ethersproject/bignumber":"efJK","@ethersproject/abstract-signer":"l8eZ","@ethersproject/wallet":"TP6f","@ethersproject/constants":"FOhG","@ethersproject/providers":"JCNj","@ethersproject/wordlists":"VsrC","./utils":"jtvS","@ethersproject/logger":"kMNH","./_version":"yxar"}],"iS6H":[function(require,module,exports) {
-"use strict";
+"use strict"; // To modify this file, you must update ./misc/admin/lib/cmds/update-exports.js
 
-// To modify this file, you must update ./misc/admin/lib/cmds/update-exports.js
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
@@ -26383,12 +30260,18 @@ Object.defineProperty(exports, "wordlists", {
     return ethers.wordlists;
   }
 });
+
 var ethers = _interopRequireWildcard(require("./ethers"));
+
 exports.ethers = ethers;
+
 function _getRequireWildcardCache(nodeInterop) { if (typeof WeakMap !== "function") return null; var cacheBabelInterop = new WeakMap(); var cacheNodeInterop = new WeakMap(); return (_getRequireWildcardCache = function (nodeInterop) { return nodeInterop ? cacheNodeInterop : cacheBabelInterop; })(nodeInterop); }
+
 function _interopRequireWildcard(obj, nodeInterop) { if (!nodeInterop && obj && obj.__esModule) { return obj; } if (obj === null || typeof obj !== "object" && typeof obj !== "function") { return { default: obj }; } var cache = _getRequireWildcardCache(nodeInterop); if (cache && cache.has(obj)) { return cache.get(obj); } var newObj = {}; var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor; for (var key in obj) { if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) { var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null; if (desc && (desc.get || desc.set)) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } newObj.default = obj; if (cache) { cache.set(obj, newObj); } return newObj; }
+
 try {
   const anyGlobal = window;
+
   if (anyGlobal._ethers == null) {
     anyGlobal._ethers = ethers;
   }
@@ -26545,23 +30428,26 @@ Object.defineProperty(exports, "Utf8ErrorReason", { enumerable: true, get: funct
 "use strict";
 
 require("regenerator-runtime/runtime");
+
 var _ethers = require("ethers");
+
 var _utils = require("ethers/lib/utils");
+
 let provider;
 let signer;
 document.addEventListener("DOMContentLoaded", loadApp());
-function returnToApp() {
-  // console.log("redirect")
+
+function returnToApp() {// console.log("redirect")
   //var user_agent_header = navigator.userAgent;
   // window.location.href = "madbackpackdeeplink:// ";
   // setTimeout(function () {
   //     window.location.href = "madbackpackdeeplink:// ";
   // }, 25);
-
   // if (user_agent_header.indexOf('iPhone') != -1 || user_agent_header.indexOf('iPod') != -1 || user_agent_header.indexOf('iPad') != -1) {
   //
   // }
 }
+
 async function loadApp() {
   provider = new _ethers.ethers.providers.Web3Provider(window.ethereum, "any");
   signer = provider.getSigner();
@@ -26569,6 +30455,7 @@ async function loadApp() {
   await provider.send("eth_requestAccounts", []);
   processAction();
 }
+
 function processAction() {
   const urlParams = new URLSearchParams(window.location.search);
   const action = urlParams.get("action");
@@ -26581,29 +30468,33 @@ function processAction() {
   const gasPrice = urlParams.get("gasPrice") || undefined;
   const backendOrderId = urlParams.get("serverTransactionId") || undefined;
   const BACKENDAPI = 'https://back.madbackpacks.io/api/v1/order';
+
   if (action === "sign" && message) {
     return signMessage(message, BACKENDAPI, backendOrderId);
   }
+
   if (action === "send" && to && value) {
     return sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BACKENDAPI, backendOrderId);
-  }
+  } // copyToClipboard("error");
 
-  // copyToClipboard("error");
-  displayResponse("Invalid URL");
-  // copyToClipboard("error");
+
+  displayResponse("Invalid URL"); // copyToClipboard("error");
 
   returnToApp();
 }
+
 async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BACKENDAPI, backendOrderId) {
   try {
     await new Promise(resolve => setTimeout(resolve, 1000));
     const network = await provider.getNetwork();
+
     if (network.chainId !== chainId) {
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
         params: [{
           chainId: `0x${parseInt(chainId, 10).toString(16)}`
         }] // chainId must be in hexadecimal numbers
+
       });
     }
 
@@ -26615,24 +30506,21 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BAC
       gasLimit: gasLimit ? (0, _utils.hexlify)(Number(gasLimit)) : gasLimit,
       gasPrice: gasPrice ? (0, _utils.hexlify)(Number(gasPrice)) : gasPrice,
       data: data ? data : "0x"
-    });
-    // displayResponse("Transaction sent.<br><br>Copy to clipboard then continue to App", tx.hash);
-    transactionComplete(tx, BACKENDAPI, backendOrderId);
-    displayResponse("Transaction completed.<br>", tx.hash);
+    }); // displayResponse("Transaction sent.<br><br>Copy to clipboard then continue to App", tx.hash);
 
-    // await copyToClipboard(tx.hash);
+    transactionComplete(tx, BACKENDAPI, backendOrderId);
+    displayResponse("Transaction completed.<br>", tx.hash); // await copyToClipboard(tx.hash);
   } catch (error) {
     // await copyToClipboard("error");
     // displayResponse("Transaction Denied");
     console.log(error);
     transactionCancel(error, BACKENDAPI, backendOrderId);
-    displayResponse("Transaction Canceled.<br>");
-
-    // await copyToClipboard("error");
+    displayResponse("Transaction Canceled.<br>"); // await copyToClipboard("error");
   }
 
   returnToApp();
 }
+
 async function signMessage(message) {
   try {
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -26646,20 +30534,19 @@ async function signMessage(message) {
     // await copyToClipboard("error");
     // displayResponse("Signature Denied");
     transactionCancel(error, BACKENDAPI, backendOrderId);
-    displayResponse("Transaction Canceled.<br>");
-
-    // await copyToClipboard("error");
+    displayResponse("Transaction Canceled.<br>"); // await copyToClipboard("error");
   }
 
   returnToApp();
 }
+
 async function copyToClipboard(response) {
   try {
     // focus from metamask back to browser
-    window.focus();
-    // wait to finish focus
-    await new Promise(resolve => setTimeout(resolve, 500));
-    // copy tx hash to clipboard
+    window.focus(); // wait to finish focus
+
+    await new Promise(resolve => setTimeout(resolve, 500)); // copy tx hash to clipboard
+
     await navigator.clipboard.writeText(response);
     document.getElementById("response-button").innerHTML = "Copied";
   } catch {
@@ -26674,13 +30561,12 @@ async function copyToClipboard(response) {
     document.getElementById("response-button").innerHTML = "Copied";
   }
 }
+
 function displayResponse(text, response) {
   // display error or response
   const responseText = document.getElementById("response-text");
   responseText.innerHTML = text;
-  responseText.className = "active";
-
-  // if (response) {
+  responseText.className = "active"; // if (response) {
   // display button to copy tx.hash or signature
   // const responseButton = document.getElementById("response-button");
   // responseButton.className = "active";
@@ -26691,7 +30577,8 @@ function displayResponse(text, response) {
 function transactionCancel(error, BACKENDAPI, backendOrderId) {
   if (error.code == 4001) {
     var xhttp = new XMLHttpRequest();
-    xhttp.open('GET', `${BACKENDAPI}/${backendOrderId}/cancel`);
+    xhttp.open('GET', `${BACKENDAPI}/${backendOrderId}/cancel/`);
+
     xhttp.onreadystatechange = function () {
       if (this.readyState == 4 && this.status == 200) {
         var response = this.responseText;
@@ -26699,13 +30586,16 @@ function transactionCancel(error, BACKENDAPI, backendOrderId) {
         console.log(response);
       }
     };
+
     xhttp.send();
   }
 }
+
 function transactionComplete(tx, BACKENDAPI, backendOrderId) {
   var xhttp = new XMLHttpRequest();
-  xhttp.open("POST", `${BACKENDAPI}/${backendOrderId}/complete`);
+  xhttp.open("POST", `${BACKENDAPI}/${backendOrderId}/complete/`);
   xhttp.setRequestHeader("Content-Type", "application/json");
+
   xhttp.onreadystatechange = function () {
     if (this.readyState == 4 && this.status == 200) {
       // Response
@@ -26714,10 +30604,11 @@ function transactionComplete(tx, BACKENDAPI, backendOrderId) {
       console.log(response);
     }
   };
+
   var data = {
     tx_hash: tx['hash']
   };
   xhttp.send(JSON.stringify(data));
 }
 },{"regenerator-runtime/runtime":"KA2S","ethers":"iS6H","ethers/lib/utils":"if8b"}]},{},["Focm"], null)
-//# sourceMappingURL=/game-web3wallet/game-web3wallet.abe27072.js.map
+//# sourceMappingURL=/game-web3wallet/game-web3wallet.f04df97d.js.map
