@@ -30437,10 +30437,10 @@ let provider;
 let signer;
 document.addEventListener("DOMContentLoaded", loadApp());
 
-function returnToApp() {// console.log("redirect")
+function returnToApp() {
+  // console.log("redirect")
   //var user_agent_header = navigator.userAgent;
-  // window.location.href = "madbackpackdeeplink:// ";
-  // setTimeout(function () {
+  window.location.href = "madbackpackdeeplink:// "; // setTimeout(function () {
   //     window.location.href = "madbackpackdeeplink:// ";
   // }, 25);
   // if (user_agent_header.indexOf('iPhone') != -1 || user_agent_header.indexOf('iPod') != -1 || user_agent_header.indexOf('iPad') != -1) {
@@ -30611,4 +30611,4 @@ function transactionComplete(tx, BACKENDAPI, backendOrderId) {
   xhttp.send(JSON.stringify(data));
 }
 },{"regenerator-runtime/runtime":"KA2S","ethers":"iS6H","ethers/lib/utils":"if8b"}]},{},["Focm"], null)
-//# sourceMappingURL=/game-web3wallet/game-web3wallet.f04df97d.js.map
+//# sourceMappingURL=/game-web3wallet/game-web3wallet.4a600461.js.map
