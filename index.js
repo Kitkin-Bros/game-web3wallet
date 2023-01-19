@@ -2,6 +2,7 @@ import "regenerator-runtime/runtime";
 import {ethers} from "ethers";
 import {parseUnits, hexlify, fetchJson} from "ethers/lib/utils";
 
+
 let provider;
 let signer;
 
@@ -148,16 +149,16 @@ function displayResponse(text, response) {
         // const responseButton = document.getElementById("response-button");
         // responseButton.className = "active";
         // responseButton.onclick = () => copyToClipboard(response);
-    }
+    // }
 }
 
-
 function transactionCancel(error, BACKENDAPI, backendOrderId) {
+    let headers = new Headers({ "Access-Control-Allow-Origin": "*" });
     if (error.code == 4001) {
-        fetchJson(`${BACKENDAPI}/${backendOrderId}/cancel`, {
-            mode: 'cors',
+        fetchJson(`${BACKENDAPI}/${backendOrderId}/cancel/`, {
+            // mode: 'cors',
+            headers:headers,
             method: 'GET',
-            
         }).then(function (data){
             console.log(data)
         })        
@@ -166,14 +167,20 @@ function transactionCancel(error, BACKENDAPI, backendOrderId) {
 
 
 function transactionComplete(tx, BACKENDAPI, backendOrderId) {
-    fetchJson(`${BACKENDAPI}/${backendOrderId}/complete`, {
-        headers: {
-            'Content-Type': "application/json"
-        },
-        mode: 'cors',
-        method: "POST", body: JSON.stringify({'tx_hash': tx['hash']})})
-    .then(function(data){
-        console.log(data)
-    })
+    let headers = new Headers({ "Access-Control-Allow-Origin": "*" });
+   let  url = `${BACKENDAPI}/${backendOrderId}/complete/`
+    fetch(url, { headers: headers, body: JSON.stringify({'tx_hash': tx['hash']}), method: "POST"})
+      .then((res) => res.json())
+      .then((data) => console.log(data));
+
+    // fetchJson(`${BACKENDAPI}/${backendOrderId}/complete`, {
+    //     headers: {
+    //         'Content-Type': "application/json"
+    //     },
+    //     mode: 'cors',
+    //     method: "POST", body: JSON.stringify({'tx_hash': tx['hash']})})
+    // .then(function(data){
+    //     console.log(data)
+    // })
 
 }
