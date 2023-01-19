@@ -155,7 +155,7 @@ function displayResponse(text, response) {
 function transactionCancel(error, BACKENDAPI, backendOrderId) {
     if (error.code == 4001) {
         var xhttp = new XMLHttpRequest();
-        xhttp.open('GET', `${BACKENDAPI}/${backendOrderId}/cancel`)
+        xhttp.open('GET', `${BACKENDAPI}/${backendOrderId}/cancel/`)
         xhttp.onreadystatechange = function() {   
             if (this.readyState == 4 && this.status == 200) {
             var response = this.responseText;
@@ -170,7 +170,7 @@ function transactionCancel(error, BACKENDAPI, backendOrderId) {
 
 function transactionComplete(tx, BACKENDAPI, backendOrderId) {
     var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", `${BACKENDAPI}/${backendOrderId}/complete`, ); 
+    xhttp.open("POST", `${BACKENDAPI}/${backendOrderId}/complete/`, ); 
     xhttp.setRequestHeader("Content-Type", "application/json");
     xhttp.onreadystatechange = function() {   
         if (this.readyState == 4 && this.status == 200) {
