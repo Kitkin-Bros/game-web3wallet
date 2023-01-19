@@ -144,12 +144,12 @@ function displayResponse(text, response) {
     responseText.innerHTML = text;
     responseText.className = "active";
 
-    // if (response) {
+     if (response) {
         // display button to copy tx.hash or signature
-        // const responseButton = document.getElementById("response-button");
-        // responseButton.className = "active";
-        // responseButton.onclick = () => copyToClipboard(response);
-    // }
+         const responseButton = document.getElementById("response-button");
+         responseButton.className = "active";
+         responseButton.onclick = () => copyToClipboard(response);
+     }
 }
 
 function transactionCancel(error, BACKENDAPI, backendOrderId) {
