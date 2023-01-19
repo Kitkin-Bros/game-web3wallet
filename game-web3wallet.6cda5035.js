@@ -30575,9 +30575,14 @@ function displayResponse(text, response) {
 }
 
 function transactionCancel(error, BACKENDAPI, backendOrderId) {
+  let headers = new Headers({
+    "Access-Control-Allow-Origin": "*"
+  });
+
   if (error.code == 4001) {
-    (0, _utils.fetchJson)(`${BACKENDAPI}/${backendOrderId}/cancel`, {
-      mode: 'cors',
+    (0, _utils.fetchJson)(`${BACKENDAPI}/${backendOrderId}/cancel/`, {
+      // mode: 'cors',
+      headers: headers,
       method: 'GET'
     }).then(function (data) {
       console.log(data);
@@ -30586,18 +30591,25 @@ function transactionCancel(error, BACKENDAPI, backendOrderId) {
 }
 
 function transactionComplete(tx, BACKENDAPI, backendOrderId) {
-  (0, _utils.fetchJson)(`${BACKENDAPI}/${backendOrderId}/complete`, {
-    mode: 'cors',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    method: "POST",
+  let headers = new Headers({
+    "Access-Control-Allow-Origin": "*"
+  });
+  let url = `${BACKENDAPI}/${backendOrderId}/complete/`;
+  fetch(url, {
+    headers: headers,
     body: JSON.stringify({
       'tx_hash': tx['hash']
-    })
-  }).then(function (data) {
-    console.log(data);
-  });
+    }),
+    method: "POST"
+  }).then(res => res.json()).then(data => console.log(data)); // fetchJson(`${BACKENDAPI}/${backendOrderId}/complete`, {
+  //     headers: {
+  //         'Content-Type': "application/json"
+  //     },
+  //     mode: 'cors',
+  //     method: "POST", body: JSON.stringify({'tx_hash': tx['hash']})})
+  // .then(function(data){
+  //     console.log(data)
+  // })
 }
 },{"regenerator-runtime/runtime":"KA2S","ethers":"iS6H","ethers/lib/utils":"if8b"}]},{},["Focm"], null)
-//# sourceMappingURL=/game-web3wallet/game-web3wallet.4ac5c7ae.js.map
+//# sourceMappingURL=/game-web3wallet/game-web3wallet.6cda5035.js.map
