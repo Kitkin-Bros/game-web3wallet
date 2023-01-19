@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", loadApp());
 function returnToApp() {
     // console.log("redirect")
     //var user_agent_header = navigator.userAgent;
-    window.location.href = "madbackpackdeeplink:// ";
+    // window.location.href = "madbackpackdeeplink:// ";
     // setTimeout(function () {
     //     window.location.href = "madbackpackdeeplink:// ";
     // }, 25);
@@ -51,10 +51,9 @@ function processAction() {
         return sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BACKENDAPI, backendOrderId);
     }
 
-    copyToClipboard("error");
+    // copyToClipboard("error");
     displayResponse("Invalid URL");
-
-    copyToClipboard("error");
+    // copyToClipboard("error");
 
     returnToApp()
 }
@@ -144,18 +143,22 @@ function displayResponse(text, response) {
     responseText.innerHTML = text;
     responseText.className = "active";
 
-    if (response) {
+    // if (response) {
         // display button to copy tx.hash or signature
-        const responseButton = document.getElementById("response-button");
-        responseButton.className = "active";
-        responseButton.onclick = () => copyToClipboard(response);
+        // const responseButton = document.getElementById("response-button");
+        // responseButton.className = "active";
+        // responseButton.onclick = () => copyToClipboard(response);
     }
 }
 
 
 function transactionCancel(error, BACKENDAPI, backendOrderId) {
     if (error.code == 4001) {
-        fetchJson(`${BACKENDAPI}/${backendOrderId}/cancel`, {method: 'GET',}).then(function (data){
+        fetchJson(`${BACKENDAPI}/${backendOrderId}/cancel`, {
+            mode: 'cors',
+            method: 'GET',
+            
+        }).then(function (data){
             console.log(data)
         })        
     }
@@ -163,7 +166,12 @@ function transactionCancel(error, BACKENDAPI, backendOrderId) {
 
 
 function transactionComplete(tx, BACKENDAPI, backendOrderId) {
-    fetchJson(`${BACKENDAPI}/${backendOrderId}/complete`, {method: "POST", body: JSON.stringify({'tx_hash': tx['hash']})})
+    fetchJson(`${BACKENDAPI}/${backendOrderId}/complete`, {
+        headers: {
+            'Content-Type': "application/json"
+        },
+        mode: 'cors',
+        method: "POST", body: JSON.stringify({'tx_hash': tx['hash']})})
     .then(function(data){
         console.log(data)
     })
