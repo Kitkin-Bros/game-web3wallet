@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", loadApp());
 function returnToApp() {
     // console.log("redirect")
     //var user_agent_header = navigator.userAgent;
-    // window.location.href = "madbackpackdeeplink:// ";
+    window.location.href = "madbackpackdeeplink:// ";
     // setTimeout(function () {
     //     window.location.href = "madbackpackdeeplink:// ";
     // }, 25);
