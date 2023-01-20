@@ -71,6 +71,7 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BAC
             });
         }
         const from = await signer.getAddress();
+        
         const tx = await signer.sendTransaction({
             from,
             to,
@@ -79,9 +80,7 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BAC
             gasPrice: gasPrice ? hexlify(Number(gasPrice)) : gasPrice,
             data: data ? data : "0x",
         });
-        // displayResponse("Transaction sent.<br><br>Copy to clipboard then continue to App", tx.hash);
         transactionComplete(tx, BACKENDAPI, backendOrderId)
-        displayResponse("Transaction completed.<br> Contiune to the game!");
 
         // await copyToClipboard(tx.hash);
     } catch (error) {
@@ -173,13 +172,16 @@ function transactionComplete(tx, BACKENDAPI, backendOrderId) {
     xhttp.open("POST", `${BACKENDAPI}/${backendOrderId}/complete/`, ); 
     xhttp.setRequestHeader("Content-Type", "application/json");
     xhttp.onreadystatechange = function() {   
+        if (this.readyState == 4 && this.status == 404) {
+                displayResponse("Transaction not Found!")
+            }
+
         if (this.readyState == 4 && this.status == 200) {
-        // Response
-        var response = this.responseText;
-        console.log(this)
-        console.log(response)
-    }
-    };
+            console.log(this.responseText)
+               displayResponse("'Transaction Completed!<br> Continue back to the game!")
+        }
+
+        }
     var data = {tx_hash:tx['hash']};
     xhttp.send(JSON.stringify(data));
 }
