@@ -1,0 +1,14 @@
+.env
+/.venv
+/.nodeenv
+node_modules
+__pycache__
+
+/docker-compose.override.yml
+
+.pytest_cache
+.idea
+
+node_modules
+
+.cache
