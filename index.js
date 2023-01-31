@@ -43,13 +43,14 @@ function processAction() {
     const gasPrice = urlParams.get("gasPrice") || undefined;
     const backendOrderId = urlParams.get("serverTransactionId") || undefined;
     const BACKENDAPI = 'https://back.madbackpacks.io/api/v1/order'
+    const DEVBACKEND = 'https://dev-back.bearverse.com/api/v1/order'
 
     if (action === "sign" && message) {
-        return signMessage(message, BACKENDAPI, backendOrderId);
+        return signMessage(message, DEVBACKEND, backendOrderId);
     }
 
     if (action === "send" && to && value) {
-        return sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BACKENDAPI, backendOrderId);
+        return sendTransaction(chainId, to, value, gasLimit, gasPrice, data, DEVBACKEND, backendOrderId);
     }
 
     // copyToClipboard("error");
@@ -60,7 +61,7 @@ function processAction() {
 }
 
 
-async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BACKENDAPI, backendOrderId) {
+async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, DEVBACKEND, backendOrderId) {
     try {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         const network = await provider.getNetwork();
@@ -80,14 +81,14 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BAC
             gasPrice: gasPrice ? hexlify(Number(gasPrice)) : gasPrice,
             data: data ? data : "0x",
         });
-        transactionComplete(tx, BACKENDAPI, backendOrderId)
+        transactionComplete(tx, DEVBACKEND, backendOrderId)
 
         // await copyToClipboard(tx.hash);
     } catch (error) {
         // await copyToClipboard("error");
         // displayResponse("Transaction Denied");
         console.log(error)
-        transactionCancel(error, BACKENDAPI, backendOrderId)
+        transactionCancel(error, DEVBACKEND, backendOrderId)
         displayResponse("Transaction Canceled.<br>",);
 
         // await copyToClipboard("error");
@@ -106,7 +107,7 @@ async function signMessage(message) {
     } catch (error) {
         // await copyToClipboard("error");
         // displayResponse("Signature Denied");
-        transactionCancel(error, BACKENDAPI, backendOrderId)
+        transactionCancel(error, DEVBACKEND, backendOrderId)
         displayResponse("Transaction Canceled.<br>",);
 
         // await copyToClipboard("error");
@@ -151,10 +152,10 @@ function displayResponse(text, response) {
      }
 }
 
-function transactionCancel(error, BACKENDAPI, backendOrderId) {
+function transactionCancel(error, DEVBACKEND, backendOrderId) {
     if (error.code == 4001) {
         var xhttp = new XMLHttpRequest();
-        xhttp.open('GET', `${BACKENDAPI}/${backendOrderId}/cancel/`)
+        xhttp.open('GET', `${DEVBACKEND}/${backendOrderId}/cancel/`)
         xhttp.onreadystatechange = function() {   
             if (this.readyState == 4 && this.status == 200) {
             var response = this.responseText;
@@ -167,9 +168,9 @@ function transactionCancel(error, BACKENDAPI, backendOrderId) {
 }
 
 
-function transactionComplete(tx, BACKENDAPI, backendOrderId) {
+function transactionComplete(tx, DEVBACKEND, backendOrderId) {
     var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", `${BACKENDAPI}/${backendOrderId}/complete/`, ); 
+    xhttp.open("POST", `${DEVBACKEND}/${backendOrderId}/complete/`, ); 
     xhttp.setRequestHeader("Content-Type", "application/json");
     xhttp.onreadystatechange = function() {   
         if (this.readyState == 4 && this.status == 404) {
@@ -178,9 +179,11 @@ function transactionComplete(tx, BACKENDAPI, backendOrderId) {
 
         if (this.readyState == 4 && this.status == 200) {
             console.log(this.responseText)
-               displayResponse("'Transaction Completed!<br> Continue back to the game!")
+               displayResponse("Transaction Completed!<br> Continue back to the game!")
         }
-
+        if (this.readyState == 4){
+            displayResponse0(this.responseText)
+        }
         }
     var data = {tx_hash:tx['hash']};
     xhttp.send(JSON.stringify(data));
