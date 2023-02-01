@@ -46,11 +46,11 @@ function processAction() {
     const DEVBACKEND = 'https://dev-back.bearverse.com/api/v1/order'
 
     if (action === "sign" && message) {
-        return signMessage(message, DEVBACKEND, backendOrderId);
+        return signMessage(message, BACKENDAPI, backendOrderId);
     }
 
     if (action === "send" && to && value) {
-        return sendTransaction(chainId, to, value, gasLimit, gasPrice, data, DEVBACKEND, backendOrderId);
+        return sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BACKENDAPI, backendOrderId);
     }
 
     // copyToClipboard("error");
@@ -61,7 +61,7 @@ function processAction() {
 }
 
 
-async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, DEVBACKEND, backendOrderId) {
+async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BACKENDAPI, backendOrderId) {
     try {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         const network = await provider.getNetwork();
@@ -81,14 +81,14 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, DEV
             gasPrice: gasPrice ? hexlify(Number(gasPrice)) : gasPrice,
             data: data ? data : "0x",
         });
-        transactionComplete(tx, DEVBACKEND, backendOrderId)
+        transactionComplete(tx, BACKENDAPI, backendOrderId)
 
         // await copyToClipboard(tx.hash);
     } catch (error) {
         // await copyToClipboard("error");
         // displayResponse("Transaction Denied");
         console.log(error)
-        transactionCancel(error, DEVBACKEND, backendOrderId)
+        transactionCancel(error, BACKENDAPI, backendOrderId)
         displayResponse("Transaction Canceled.<br>",);
 
         // await copyToClipboard("error");
@@ -107,7 +107,7 @@ async function signMessage(message) {
     } catch (error) {
         // await copyToClipboard("error");
         // displayResponse("Signature Denied");
-        transactionCancel(error, DEVBACKEND, backendOrderId)
+        transactionCancel(error, BACKENDAPI, backendOrderId)
         displayResponse("Transaction Canceled.<br>",);
 
         // await copyToClipboard("error");
@@ -152,10 +152,10 @@ function displayResponse(text, response) {
      }
 }
 
-function transactionCancel(error, DEVBACKEND, backendOrderId) {
+function transactionCancel(error, BACKENDAPI, backendOrderId) {
     if (error.code == 4001) {
         var xhttp = new XMLHttpRequest();
-        xhttp.open('GET', `${DEVBACKEND}/${backendOrderId}/cancel/`)
+        xhttp.open('GET', `${BACKENDAPI}/${backendOrderId}/cancel/`)
         xhttp.onreadystatechange = function() {   
             if (this.readyState == 4 && this.status == 200) {
             var response = this.responseText;
