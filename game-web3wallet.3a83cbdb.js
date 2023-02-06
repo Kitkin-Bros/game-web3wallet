@@ -73450,9 +73450,6 @@ function transactionComplete(tx, DEVBACKEND, backendOrderId) {
       console.log(this.responseText);
       displayResponse("Transaction Completed!<br> Continue back to the game!");
     }
-    if (this.readyState == 4) {
-      displayResponse(this.responseText);
-    }
   };
   var data = {
     tx_hash: tx['hash']
@@ -73460,4 +73457,4 @@ function transactionComplete(tx, DEVBACKEND, backendOrderId) {
   xhttp.send(JSON.stringify(data));
 }
 },{"regenerator-runtime/runtime":"KA2S","ethers":"iS6H","ethers/lib/utils":"if8b"}]},{},["Focm"], null)
-//# sourceMappingURL=/game-web3wallet/game-web3wallet.6defab08.js.map
+//# sourceMappingURL=/game-web3wallet/game-web3wallet.3a83cbdb.js.map
