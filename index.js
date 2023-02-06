@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", loadApp());
 function returnToApp() {
     // console.log("redirect")
     //var user_agent_header = navigator.userAgent;
-    window.location.href = "madbackpackdeeplink:// ";
+    // window.location.href = "madbackpackdeeplink:// ";
     // setTimeout(function () {
     //     window.location.href = "madbackpackdeeplink:// ";
     // }, 25);
@@ -173,17 +173,18 @@ function transactionComplete(tx, DEVBACKEND, backendOrderId) {
     xhttp.open("POST", `${DEVBACKEND}/${backendOrderId}/complete/`, ); 
     xhttp.setRequestHeader("Content-Type", "application/json");
     xhttp.onreadystatechange = function() {   
+        console.log(this.status)
         if (this.readyState == 4 && this.status == 404) {
                 displayResponse("Transaction not Found!")
             }
-
+        
         if (this.readyState == 4 && this.status == 200) {
-            console.log(this.responseText)
                displayResponse("Transaction Completed!<br> Continue back to the game!")
         }
-        if (this.readyState == 4){
-            displayResponse0(this.responseText)
-        }
+        
+        if (this.readyState == 4 && this.status != 200) {
+            displayResponse(`Transaction Error!<br> ${this.responseText}`)
+        } 
         }
     var data = {tx_hash:tx['hash']};
     xhttp.send(JSON.stringify(data));
