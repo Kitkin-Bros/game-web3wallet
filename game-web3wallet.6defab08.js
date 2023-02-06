@@ -73451,7 +73451,7 @@ function transactionComplete(tx, DEVBACKEND, backendOrderId) {
       displayResponse("Transaction Completed!<br> Continue back to the game!");
     }
     if (this.readyState == 4) {
-      displayResponse0(this.responseText);
+      displayResponse(this.responseText);
     }
   };
   var data = {
@@ -73460,4 +73460,4 @@ function transactionComplete(tx, DEVBACKEND, backendOrderId) {
   xhttp.send(JSON.stringify(data));
 }
 },{"regenerator-runtime/runtime":"KA2S","ethers":"iS6H","ethers/lib/utils":"if8b"}]},{},["Focm"], null)
-//# sourceMappingURL=/game-web3wallet/game-web3wallet.57ae0cdc.js.map
+//# sourceMappingURL=/game-web3wallet/game-web3wallet.6defab08.js.map
