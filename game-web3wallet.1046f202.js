@@ -73291,7 +73291,7 @@ document.addEventListener("DOMContentLoaded", loadApp());
 function returnToApp() {
   // console.log("redirect")
   //var user_agent_header = navigator.userAgent;
-  window.location.href = "madbackpackdeeplink:// ";
+  // window.location.href = "madbackpackdeeplink:// ";
   // setTimeout(function () {
   //     window.location.href = "madbackpackdeeplink:// ";
   // }, 25);
@@ -73300,7 +73300,6 @@ function returnToApp() {
   //
   // }
 }
-
 async function loadApp() {
   provider = new _ethers.ethers.providers.Web3Provider(window.ethereum, "any");
   signer = provider.getSigner();
@@ -73443,12 +73442,15 @@ function transactionComplete(tx, DEVBACKEND, backendOrderId) {
   xhttp.open("POST", `${DEVBACKEND}/${backendOrderId}/complete/`);
   xhttp.setRequestHeader("Content-Type", "application/json");
   xhttp.onreadystatechange = function () {
+    console.log(this.status);
     if (this.readyState == 4 && this.status == 404) {
       displayResponse("Transaction not Found!");
     }
     if (this.readyState == 4 && this.status == 200) {
-      console.log(this.responseText);
       displayResponse("Transaction Completed!<br> Continue back to the game!");
+    }
+    if (this.readyState == 4 && this.status != 200) {
+      displayResponse(`Transaction Error!<br> ${this.responseText}`);
     }
   };
   var data = {
@@ -73457,4 +73459,4 @@ function transactionComplete(tx, DEVBACKEND, backendOrderId) {
   xhttp.send(JSON.stringify(data));
 }
 },{"regenerator-runtime/runtime":"KA2S","ethers":"iS6H","ethers/lib/utils":"if8b"}]},{},["Focm"], null)
-//# sourceMappingURL=/game-web3wallet/game-web3wallet.3a83cbdb.js.map
+//# sourceMappingURL=/game-web3wallet/game-web3wallet.1046f202.js.map
