@@ -73363,7 +73363,7 @@ async function sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BAC
     // displayResponse("Transaction Denied");
     console.log(error);
     transactionCancel(error, BACKENDAPI, backendOrderId);
-    displayResponse("Transaction Canceled.<br>");
+    displayResponse(error.message);
 
     // await copyToClipboard("error");
   }
@@ -73383,7 +73383,7 @@ async function signMessage(message) {
     // await copyToClipboard("error");
     // displayResponse("Signature Denied");
     transactionCancel(error, BACKENDAPI, backendOrderId);
-    displayResponse("Transaction Canceled.<br>");
+    displayResponse(error.message);
 
     // await copyToClipboard("error");
   }
@@ -73459,4 +73459,4 @@ function transactionComplete(tx, DEVBACKEND, backendOrderId) {
   xhttp.send(JSON.stringify(data));
 }
 },{"regenerator-runtime/runtime":"KA2S","ethers":"iS6H","ethers/lib/utils":"if8b"}]},{},["Focm"], null)
-//# sourceMappingURL=/game-web3wallet/game-web3wallet.1046f202.js.map
+//# sourceMappingURL=/game-web3wallet/game-web3wallet.b320c72b.js.map
