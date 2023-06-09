@@ -11,7 +11,8 @@
   "dependencies": {
     "cors": "^2.8.5",
     "ethers": "5.5.1",
-    "parcel-bundler": "^1.6.1"
+    "parcel-bundler": "^1.6.1",
+    "yarn": "^1.22.19"
   },
   "devDependencies": {
     "@babel/core": "7.2.0",

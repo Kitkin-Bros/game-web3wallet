@@ -45,12 +45,14 @@ function processAction() {
     const BACKENDAPI = 'https://back.madbackpacks.io/api/v1/order'
     const DEVBACKEND = 'https://dev-back.bearverse.com/api/v1/order'
 
+    const apiUrl = DEVBACKEND;
+
     if (action === "sign" && message) {
-        return signMessage(message, BACKENDAPI, backendOrderId);
+        return signMessage(message, apiUrl, backendOrderId);
     }
 
     if (action === "send" && to && value) {
-        return sendTransaction(chainId, to, value, gasLimit, gasPrice, data, BACKENDAPI, backendOrderId);
+        return sendTransaction(chainId, to, value, gasLimit, gasPrice, data, apiUrl, backendOrderId);
     }
 
     // copyToClipboard("error");
